@@ -1,0 +1,95 @@
+name: PR Dry Run
+# Runs an ansible dry run and posts the results as a comment on the PR.
+on:
+  pull_request_target:
+    branches:
+      - main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  # only cancel-in-progress on non-default branches
+  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
+env:
+  COMMENT_ID: ansible-dry-run
+jobs:
+  dry-run:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+
+
+      - uses: mshick/add-pr-comment@v2
+        with:
+          refresh-message-position: false
+          update-only: true
+          message-id: ${{ env.COMMENT_ID }}
+          message: |
+            ## Ansible Dry Run Results
+
+            :hourglass_flowing_sand: Running Ansible Dry Run...
+      - uses: actions/checkout@v4
+      # # connect to vpn - needed to access private network
+      # - name: Install OpenVPN
+      #   run: |
+      #     sudo apt update
+      #     sudo apt install -y openvpn openvpn-systemd-resolved
+      # - name: Connect to VPN
+      #   uses: "kota65535/github-openvpn-connect-action@v2"
+      #   with:
+      #     config_file: .github/workflows/client.ovpn
+      #     username: ${{ secrets.OVPN_USERNAME }}
+      #     password: ${{ secrets.OVPN_PASSWORD }}
+      #     client_key: ${{ secrets.OVPN_CLIENT_KEY }}
+      #     tls_auth_key: ${{ secrets.OVPN_TLS_AUTH_KEY }}
+      
+      # install and run ansible
+      - name: Install Ansible
+        run: |
+          sudo apt update
+          sudo apt install -y ansible
+      - name: Install Ansible Galaxy Requirements
+        run: |
+          ansible-galaxy install -r requirements.yml
+      - name: Run Ansible Dry Run
+        id: dry-run
+        run: |
+          ansible-playbook ./playbooks/site.yml --check | tee output.txt
+          echo "ansible-dry-run="$(cat output.txt) >> $GITHUB_OUTPUT
+      # - name: Run playbook
+      #   uses: dawidd6/action-ansible-playbook@v2
+      #   with:
+      #     # Required, playbook filepath
+      #     playbook: site.yml
+      #     # Optional, directory where playbooks live
+      #     directory: ./playbooks
+      #     # Optional, SSH private key
+      #     # key: ${{secrets.SSH_PRIVATE_KEY}}
+      #     # Optional, literal inventory file contents
+      #     # inventory: |
+      #     #   [all]
+      #     #   example.com
+      #     #   [group1]
+      #     #   example.com
+      #     # Optional, SSH known hosts file content
+      #     known_hosts: |
+      #       example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+      #     # Optional, encrypted vault password
+      #     vault_password: ${{secrets.VAULT_PASSWORD}}
+      #     # Optional, galaxy requirements filepath
+      #     # requirements: galaxy-requirements.yml
+      #     # Optional, additional flags to pass to ansible-playbook
+      #     options: |
+      #       --check
+
+
+      - uses: mshick/add-pr-comment@v2
+        with:
+          refresh-message-position: true
+          message-id: ${{ env.COMMENT_ID }}
+          message: |
+            ## Ansible Dry Run Results
+
+            ```bash
+            ${{ steps.dry-run.outputs.ansible-dry-run }}
+            ```
