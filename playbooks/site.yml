@@ -2,7 +2,7 @@
 - name: Echo a string on all n8house hosts
   hosts: n8house
   roles:
-    - common
+    - ../roles/common
   tasks:
     - name: Echo a string
       command:
