@@ -46,7 +46,7 @@ jobs:
       #     password: ${{ secrets.OVPN_PASSWORD }}
       #     client_key: ${{ secrets.OVPN_CLIENT_KEY }}
       #     tls_auth_key: ${{ secrets.OVPN_TLS_AUTH_KEY }}
-      
+
       # install and run ansible
       - name: Install Ansible
         run: |
@@ -69,7 +69,7 @@ jobs:
           # set pipefail so that the pipeline will fail if any command fails so we're sure tee doesn't swallow the error
           set -o pipefail
 
-          for inventory in "$(find ./inventory -type f -name "*.cfg" -print)"; do
+          find ./inventory -type f -name "*.cfg" -print | while read -r inventory; do
             echo "Pinging all group for inventory $inventory"
             ansible -m ping --inventory $inventory all 2>&1 | tee output.txt
           done

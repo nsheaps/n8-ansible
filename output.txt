@@ -1,0 +1,10 @@
+n8laptop(192.168.0.130) | UNREACHABLE! => {
+    "changed": false,
+    "msg": "Failed to connect to the host via ssh: ansible@192.168.0.130: Permission denied (publickey,password).",
+    "unreachable": true
+}
+n8-server(192.168.0.48) | UNREACHABLE! => {
+    "changed": false,
+    "msg": "Failed to connect to the host via ssh: ansible@192.168.0.48: Permission denied (publickey,password).",
+    "unreachable": true
+}
