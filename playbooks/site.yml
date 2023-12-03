@@ -11,4 +11,3 @@
 
     - name: Print the output
       debug:
-        var: result.stdout
