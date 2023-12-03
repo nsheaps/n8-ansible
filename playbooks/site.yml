@@ -1,8 +1,14 @@
 ---
 - name: Echo a string on all n8house hosts
-  hosts: n8house
+  hosts: all
   roles:
-    - common
+    - ../roles/common
+- name: Echo a string on all n8house hosts
+  hosts: all
+  roles:
+    - ../roles/say-hello
+- name: Echo a string on all n8house hosts
+  hosts: all
   tasks:
     - name: Echo a string
       command:
@@ -11,4 +17,7 @@
 
     - name: Print the output
       debug:
-        var: result.stdout
+- name: Sync known ssh hosts
+  hosts: all
+  roles:
+    - ../roles/ssh-known-hosts

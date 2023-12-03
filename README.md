@@ -34,13 +34,92 @@ To run the Ansible playbooks locally, use the following command:
 
 To perform a "dry run" (i.e., simulate the playbook run without making any changes), use the `--check` flag:
 
+`ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house --check`
 
-## Adding a New Host
+## Configuring New Hosts
 
-To add a new host to the Ansible inventory:
+### Linux
 
-1. Add the host's details to the appropriate inventory file (e.g., `inventory/production` or `inventory/staging`).
-2. If necessary, add any host-specific variables to a new file in the `host_vars` directory.
+#### Install ssh server
+
+This will be needed for Ansible to connect to the host.
+
+```bash
+sudo apt update
+sudo apt install openssh-server
+sudo systemctl status ssh
+```
+
+**Configure SSH to only accept connections from the local network
+
+```bash
+sudo nano /etc/ssh/sshd_config
+
+# add the following lines:
+# ListenAddress
+# PermitRootLogin no
+# PasswordAuthentication no
+# PubkeyAuthentication yes
+# AllowUsers <username>
+# AllowGroups <groupname>
+# AllowTcpForwarding no
+# X11Forwarding no
+# AllowAgentForwarding no
+# PermitTunnel no
+# AllowStreamLocalForwarding no
+# GatewayPorts no
+# PermitEmptyPasswords no
+# ChallengeResponseAuthentication no
+# UsePAM no
+# UseDNS no
+# LogLevel VERBOSE
+
+
+```
+
+#### Install Ansible
+
+1. Install Ansible on the new host. On Ubuntu, you can do this with `sudo apt install ansible`.
+2. Create a new user for Ansible to use. For example, `sudo adduser ansible`.
+3. Add the Ansible user to the `sudo` group: `sudo usermod -aG sudo ansible`.
+4. On your control node, generate an SSH key pair with `ssh-keygen`.
+5. Copy the public key to the new host with `ssh-copy-id ansible@<new-host-ip>`.
+6. Test the setup by running `ansible -m ping <new-host-ip>` from the control node.
+
+Quick run:
+
+```bash
+sudo apt update
+sudo apt install ansible
+sudo adduser ansible
+sudo usermod -aG sudo ansible
+# ssh-keygen # make public/private key pair for ansible user
+# copy private key to control node
+# copy public key to new host
+HOST_IP="$(ip addr show eth0 | grep -Po 'inet \K[\d.]+')"
+ssh-copy-id ansible@"$HOST_IP"
+ansible -m ping "$HOST_IP"
+echo "DON'T FORGET TO SET A DHCP RESERVATION FOR $HOSTNAME:$HOST_IP"
+```
+
+### Windows
+
+See also: [Ansible documentation](https://docs.ansible.com/ansible/latest/user_guide/windows_setup.html)
+
+1. Install Windows Remote Management (WinRM) on the new host.
+2. Create a new user for Ansible to use.
+3. Add the Ansible user to the Administrators group.
+4. Configure WinRM to allow connections from the control node. You can use the `ConfigureRemotingForAnsible.ps1` script provided in the Ansible GitHub repository.
+5. Test the setup by running `ansible -m win_ping <new-host-ip>` from the control node.
+
+### Windows Subsystem for Linux (WSL)
+
+1. Install WSL on the new host.
+2. Install Ansible within WSL using the same steps as for Linux.
+3. Follow the same steps as for Linux to create a new user, copy the SSH key, and test the setup.
+4. Forward the port used by SSH (tbd) because WSL uses NAT instead of bridged networking.
+
+Remember to update the inventory file (`inventory/production`) with the details of the new host.
 
 ## Contributing
 
