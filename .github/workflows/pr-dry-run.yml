@@ -30,6 +30,7 @@ jobs:
 
             :hourglass_flowing_sand: Running Ansible Dry Run...
       - uses: actions/checkout@v4
+
       # # connect to vpn - needed to access private network
       # - name: Install OpenVPN
       #   run: |
@@ -47,17 +48,28 @@ jobs:
       # install and run ansible
       - name: Install Ansible
         run: |
+          # print every command before running
+          set -x
+
           sudo apt update
-          sudo apt install -y ansible
+          sudo apt install -y ansible=2.10.7+merged+base+2.10.8+dfsg-1
+
+          ansible --version
       # - name: Install Ansible Galaxy Requirements
       #   run: |
       #     ansible-galaxy install -r requirements.yml
       - name: ansible ping every inventory
         id: ansible-ping
         run: |
-          for inventory in "$(find ./inventory -type f -name "*.ini" -print)"; do
+          # print every command before running
+          set -x
+
+          # set pipefail so that the pipeline will fail if any command fails so we're sure tee doesn't swallow the error
+          set -o pipefail
+
+          for inventory in "$(find ./inventory -type f -name "*.cfg" -print)"; do
             echo "Pinging all group for inventory $inventory"
-            ansible -m ping --inventory $inventory all | tee output.txt
+            ansible -m ping --inventory $inventory all 2>&1 | tee output.txt
           done
       - name: Run Ansible Dry Run
         id: dry-run
@@ -89,7 +101,6 @@ jobs:
       #     # Optional, additional flags to pass to ansible-playbook
       #     options: |
       #       --check
-
 
       - uses: mshick/add-pr-comment@v2
         with:
