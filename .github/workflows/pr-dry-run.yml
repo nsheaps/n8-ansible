@@ -1,12 +1,14 @@
 name: Ansible Dry Run
 # Runs an ansible dry run and posts the results as a comment on the PR.
 on:
-  # pull_request_target:
-  #   branches:
-  #     - main
-  push: {}
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event_name.pull_request && github.event.pull_request.number || github.sha }}
   # only cancel-in-progress on non-default branches
   cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
 env:
