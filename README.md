@@ -34,9 +34,50 @@ To run the Ansible playbooks locally, use the following command:
 
 To perform a "dry run" (i.e., simulate the playbook run without making any changes), use the `--check` flag:
 
+`ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house --check`
+
 ## Configuring New Hosts
 
 ### Linux
+
+#### Install ssh server
+
+This will be needed for Ansible to connect to the host.
+
+```bash
+sudo apt update
+sudo apt install openssh-server
+sudo systemctl status ssh
+```
+
+**Configure SSH to only accept connections from the local network
+
+```bash
+sudo nano /etc/ssh/sshd_config
+
+# add the following lines:
+# ListenAddress
+# PermitRootLogin no
+# PasswordAuthentication no
+# PubkeyAuthentication yes
+# AllowUsers <username>
+# AllowGroups <groupname>
+# AllowTcpForwarding no
+# X11Forwarding no
+# AllowAgentForwarding no
+# PermitTunnel no
+# AllowStreamLocalForwarding no
+# GatewayPorts no
+# PermitEmptyPasswords no
+# ChallengeResponseAuthentication no
+# UsePAM no
+# UseDNS no
+# LogLevel VERBOSE
+
+
+```
+
+#### Install Ansible
 
 1. Install Ansible on the new host. On Ubuntu, you can do this with `sudo apt install ansible`.
 2. Create a new user for Ansible to use. For example, `sudo adduser ansible`.

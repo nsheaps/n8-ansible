@@ -1,9 +1,10 @@
 name: PR Dry Run
 # Runs an ansible dry run and posts the results as a comment on the PR.
 on:
-  pull_request_target:
-    branches:
-      - main
+  # pull_request_target:
+  #   branches:
+  #     - main
+  push: {}
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   # only cancel-in-progress on non-default branches
@@ -51,10 +52,17 @@ jobs:
       # - name: Install Ansible Galaxy Requirements
       #   run: |
       #     ansible-galaxy install -r requirements.yml
+      - name: ansible ping every inventory
+        id: ansible-ping
+        run: |
+          for inventory in "$(find ./inventory -type f -name "*.ini" -print)"; do
+            echo "Pinging all group for inventory $inventory"
+            ansible -m ping --inventory $inventory all | tee output.txt
+          done
       - name: Run Ansible Dry Run
         id: dry-run
         run: |
-          ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house --check | tee output.txt
+          ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house.ini --check | tee output.txt
           echo "ansible-dry-run="$(cat output.txt) >> $GITHUB_OUTPUT
       # - name: Run playbook
       #   uses: dawidd6/action-ansible-playbook@v2
