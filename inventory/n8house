@@ -1,0 +1,48 @@
+[n8house]
+windows
+linux
+
+# groups
+[windows]
+; n8-desktop
+; n8-htpc
+
+[linux]
+n8-server
+n8-laptop
+wsl
+
+[wsl]
+; n8-desktop-wsl
+; n8-htpc-wsl
+
+# host aliases
+[n8-server]
+nsh-ubuntu
+
+[n8-desktop]
+; nsh-desktop
+
+[n8-htpc]
+; n8htpc
+
+[n8-desktop-wsl]
+; n8-desktop
+
+[n8-htpc-wsl]
+; n8-htpc
+
+# real hosts
+# host mapping maintained by router dhcp static assignment
+[nsh-ubuntu]
+192.168.0.48 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+[n8htpc]
+; 192.168.0.66 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+[nsh-desktop]
+; 192.168.0.106 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+[n8laptop]
+; 192.168.0.130 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa
+

@@ -1,0 +1,14 @@
+---
+- name: Echo a string on all n8house hosts
+  hosts: n8house
+  roles:
+    - common
+  tasks:
+    - name: Echo a string
+      command:
+        cmd: echo "Hello from Ansible!"
+      register: result
+
+    - name: Print the output
+      debug:
+        var: result.stdout
