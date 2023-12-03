@@ -10,6 +10,15 @@ These instructions will get you a copy of the project up and running on your loc
 
 - Ansible (version 2.9 or later)
 - Python (version 3.6 or later)
+- 
+```bash
+# macOS or linuxbrew
+brew install ansible
+
+# apt (debian, ubuntu, etc.)
+sudo apt update
+sudo apt install ansible
+```
 
 ### Installation
 
@@ -21,9 +30,9 @@ These instructions will get you a copy of the project up and running on your loc
     ```
     cd n8-ansible
     ```
-3. Install the required Python packages:
+3. Do a dry run:
     ```
-    pip install -r requirements.txt
+    ansible-playbook ./playbooks/playbook.yml --inventory ./inventory/inventory.cfg --check
     ```
 
 ## Running Locally
