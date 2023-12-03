@@ -62,7 +62,7 @@ jobs:
       - name: Run Ansible Dry Run
         id: dry-run
         run: |
-          ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house.ini --check | tee output.txt
+          ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house --check 2>&1 | tee output.txt
           echo "ansible-dry-run="$(cat output.txt) >> $GITHUB_OUTPUT
       # - name: Run playbook
       #   uses: dawidd6/action-ansible-playbook@v2
@@ -98,6 +98,6 @@ jobs:
           message: |
             ## Ansible Dry Run Results
 
-            ```bash
+            <pre>
             ${{ steps.dry-run.outputs.ansible-dry-run }}
-            ```
+            </pre>
