@@ -1,4 +1,4 @@
-name: PR Dry Run
+name: Ansible Dry Run
 # Runs an ansible dry run and posts the results as a comment on the PR.
 on:
   # pull_request_target:
