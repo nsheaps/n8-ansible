@@ -1,4 +1,17 @@
 ---
-- name: echo "Hello from Ansible!"
-  shell: notify-send-all -t 100 "Hello from Ansible!" "testing is this thing on"
+- name: Ensure line updated in /etc/systemd/logind.conf
+  lineinfile:
+    path: /etc/systemd/logind.conf
+    state: present
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    # regex101 tests: https://regex101.com/r/yptXXj/1
+    # options are ignore hibernate suspend poweroff reboot
+    - { regexp: '^#?\s*HandleLidSwitchExternalPower=.*$', line: 'HandleLidSwitchExternalPower=ignore' }
+    # - { regexp: '^kernel.shmmax', line: 'kernel.shmmax = 134217728' }
+    # - { regexp: '^fs.file-max', line: 'fs.file-max = 65536' }
+  become: true
+- name: notify "Power options configured by ansible"
+  shell: notify-send-all -t 100 "Power options reconfigured by ansible" "Device will now remain on when plugged in, even if lid is closed."
 
