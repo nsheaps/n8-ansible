@@ -7,6 +7,10 @@
   hosts: linux
   roles:
     - ../roles/say-hello
+- name: Apply always-on power settings
+  hosts: n8server
+  roles:
+    - ../roles/always-on-if-plugged-in
 # - name: Echo a string on all n8house hosts
 #   hosts: all
 #   tasks:

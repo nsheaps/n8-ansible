@@ -1,0 +1,4 @@
+---
+- name: echo "Hello from Ansible!"
+  shell: notify-send-all -t 100 "Hello from Ansible!" "testing is this thing on"
+
