@@ -112,7 +112,7 @@ jobs:
                 FAILED=1
               fi
             else
-              if ! ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" $CHECK 2>&1 | tee output.txt; then
+              if ! ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" $CHECK 2>&1 | tee output.txt -a; then
                 echo "ANSIBLE RUN FAILED FOR $inventory"
                 FAILED=1
               fi
