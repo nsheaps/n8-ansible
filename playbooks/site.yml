@@ -4,7 +4,7 @@
   roles:
     - ../roles/common
 - name: Echo a string on all n8house hosts
-  hosts: all
+  hosts: linux
   roles:
     - ../roles/say-hello
 # - name: Echo a string on all n8house hosts
