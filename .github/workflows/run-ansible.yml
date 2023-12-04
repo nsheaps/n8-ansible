@@ -14,7 +14,7 @@ concurrency:
 env:
   COMMENT_ID: ansible-dry-run
 jobs:
-  dry-run:
+  run:
     permissions:
       contents: read
       pull-requests: write
@@ -92,33 +92,20 @@ jobs:
         id: dry-run
         if: (!cancelled())
         run: |
-          ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house ${{ github.ref_name != github.event.repository.default_branch && '--check' || ''}} 2>&1 | tee output.txt
+
+          # print every command before running
+          set -x
+
+          # set pipefail so that the pipeline will fail if any command fails so we're sure tee doesn't swallow the error
+          set -o pipefail
+
+          find ./inventory/ -type f -name "*.cfg" -print | while read -r inventory; do
+            inventory="$(basename -s .cfg "$inventory")"
+            CHECK="${{ github.ref_name != github.event.repository.default_branch && '--check' || ''}}"
+            ansible-playbook "./playbooks/$(basename -s .cfg $inventory).yml" --inventory "./inventory/$inventory.cfg" "$CHECK" 2>&1 | tee output.txt
+          done
+
           echo "ansible-dry-run="$(cat output.txt) >> $GITHUB_OUTPUT
-      # - name: Run playbook
-      #   uses: dawidd6/action-ansible-playbook@v2
-      #   with:
-      #     # Required, playbook filepath
-      #     playbook: site.yml
-      #     # Optional, directory where playbooks live
-      #     directory: ./playbooks
-      #     # Optional, SSH private key
-      #     # key: ${{secrets.SSH_PRIVATE_KEY}}
-      #     # Optional, literal inventory file contents
-      #     # inventory: |
-      #     #   [all]
-      #     #   example.com
-      #     #   [group1]
-      #     #   example.com
-      #     # Optional, SSH known hosts file content
-      #     known_hosts: |
-      #       example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
-      #     # Optional, encrypted vault password
-      #     vault_password: ${{secrets.VAULT_PASSWORD}}
-      #     # Optional, galaxy requirements filepath
-      #     # requirements: galaxy-requirements.yml
-      #     # Optional, additional flags to pass to ansible-playbook
-      #     options: |
-      #       --check
 
       - uses: mshick/add-pr-comment@v2
         if: (!cancelled())

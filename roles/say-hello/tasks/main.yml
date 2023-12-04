@@ -6,6 +6,6 @@
     mode: '0755'
   become: true
 - name: Popup Notification
-  command: notify-send-all "Ansible" "Ansible was just run on this computer from github"
+  command: notify-send-all -t 10 "Ansible" "Ansible was just run on this computer from github"
   register: result
 
