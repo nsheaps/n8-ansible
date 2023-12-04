@@ -100,14 +100,33 @@ Quick run:
 ```bash
 sudo apt update
 sudo apt install ansible
-sudo adduser ansible
+sudo adduser ansible # asks for password
 sudo usermod -aG sudo ansible
-# ssh-keygen # make public/private key pair for ansible user
-# copy private key to control node
-# copy public key to new host
-HOST_IP="$(ip addr show eth0 | grep -Po 'inet \K[\d.]+')"
-ssh-copy-id ansible@"$HOST_IP"
-ansible -m ping "$HOST_IP"
+
+# first time, run ssh-keygen to generate
+sudo su ansible # swap to the ansible account
+ssh-keygen # generate ssh key pair
+
+# get the Private Key onto other hosts
+# for you to login as
+ssh-copy-id -i ~/.ssh/id_rsa <new-user>@<new-host-ip>
+
+# for you to make the ansible user the same across hosts
+ssh-copy-id -i ~/.ssh/id_rsa ansible@<new-host-ip>
+
+# for a brand new host to act as ansible, regardless of users
+echo "${{ secrets.ANSIBLE_SSH_KEY }}" > ~/.ssh/id_rsa
+chmod 600 ~/.ssh/id_rsa
+ssh-add ~/.ssh/id_rsa # if you do this, the current user can use to auth as ansible. -d will remove in case you permit different users
+
+
+# FINALLY
+# copy over known_hosts file if known
+echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+# create authorized_keys file to allow the key to ssh to the host
+ssh-copy-id ansible@localhost 
+
+
 echo "DON'T FORGET TO SET A DHCP RESERVATION FOR $HOSTNAME:$HOST_IP"
 ```
 

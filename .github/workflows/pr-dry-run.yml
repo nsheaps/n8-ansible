@@ -48,6 +48,17 @@ jobs:
           config_file: .github/config/client.ovpn
           client_key: ${{ secrets.OVPN_CLIENT_PRIVATE_KEY }}
 
+      # set up ssh
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ANSIBLE_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-add ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+          echo "::add-mask::${{ secrets.ANSIBLE_SSH_KEY }}"
+
       # install and run ansible
       - name: Install Ansible
         run: |

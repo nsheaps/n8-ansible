@@ -7,17 +7,17 @@
   hosts: all
   roles:
     - ../roles/say-hello
-- name: Echo a string on all n8house hosts
-  hosts: all
-  tasks:
-    - name: Echo a string
-      command:
-        cmd: echo "Hello from Ansible!"
-      register: result
+# - name: Echo a string on all n8house hosts
+#   hosts: all
+#   tasks:
+#     - name: Echo a string
+#       command:
+#         cmd: echo "Hello from Ansible!"
+#       register: result
 
-    - name: Print the output
-      debug:
-- name: Sync known ssh hosts
-  hosts: all
-  roles:
-    - ../roles/ssh-known-hosts
+#     - name: Print the output
+#       debug:
+# - name: Sync known ssh hosts
+#   hosts: all
+#   roles:
+#     - ../roles/ssh-known-hosts

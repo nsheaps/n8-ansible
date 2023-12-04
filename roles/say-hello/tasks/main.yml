@@ -1,0 +1,8 @@
+---
+- name: Popup message
+  hosts: linux
+  tasks:
+    - name: Popup Notification
+      command: notify-send "Ansible" "Ansible was just run on this computer from github"
+      register: result
+
