@@ -105,8 +105,10 @@ jobs:
             CHECK="--check"
             if [[ "$IS_DEFAULT_BRANCH" == "true" ]]; then
               CHECK=""
+              ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" $CHECK
+            else
+              ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" $CHECK 2>&1 | tee output.txt
             fi
-            ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" "$CHECK" 2>&1 | tee output.txt
           done
 
           # if output exists
