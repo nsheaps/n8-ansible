@@ -1,4 +1,4 @@
-name: Ansible Dry Run
+name: Run Ansible
 # Runs an ansible dry run and posts the results as a comment on the PR.
 on:
   pull_request:
@@ -92,7 +92,7 @@ jobs:
         id: dry-run
         if: (!cancelled())
         run: |
-          ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house --check 2>&1 | tee output.txt
+          ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house ${{ github.ref_name != github.event.repository.default_branch && '--check' || ''}} 2>&1 | tee output.txt
           echo "ansible-dry-run="$(cat output.txt) >> $GITHUB_OUTPUT
       # - name: Run playbook
       #   uses: dawidd6/action-ansible-playbook@v2
