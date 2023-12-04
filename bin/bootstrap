@@ -15,6 +15,7 @@ set -x
 # LPASS_ACCOUNT_EMAIL but defaults to first arg
 LPASS_ACCOUNT_EMAIL="${1:-"example@example.com"}"
 GH_AUTH_USER="${2:-"example"}"
+REPO="${3:-"https://github.com/nsheaps/n8-ansible.git"}"
 
 # if brew is installed, use it to install lastpass-cli, otherwise use apt-get
 if [ -x "$(command -v apt-get)" ]; then
@@ -42,16 +43,29 @@ lpass login --trust "$LPASS_ACCOUNT_EMAIL"
 # gh auth login --with-token <<< "$(lpass show --notes "github.com/$GH_AUTH_USER")"
 gh auth login # login interactively
 
-# make a tempdir to do all of our work
-export ROOT_DIR="$(mktemp -d)"
-cd "$ROOT_DIR"
 
-# clone the repo
-git clone https://github.com/nsheaps/n8-ansible.git
+# if the upstream of this repo is $REPO, cd to the root of the repo, otherwise, check it out
+if [ "$(git config --get remote.origin.url)" == "$REPO" ]; then
+  cd "$(git rev-parse --show-toplevel)"
+  ROOT_DIR="$(pwd)"
+  export ROOT_DIR
+else
+  # make a tempdir to do all of our work
+  ROOT_DIR="$(mktemp -d)"
+  export ROOT_DIR
+  cd "$ROOT_DIR"
 
-cd n8-ansible
+  # clone the repo
+  git clone https://github.com/nsheaps/n8-ansible.git
+
+  cd n8-ansible
+fi
+
+
+lpass show "Home/ansible node bootstrap config" --note > "$HOME/.bootstraprc"
+. "$HOME/.bootstraprc"
 
 # run ansible
-ansible-playbook ./playbooks/bootstrap.yml --ask-become-pass
+ansible-playbook ./playbooks/bootstrap.yml --ask-become-pass --extra-vars "{\"running_as\":\"$USER\", \"root_dir\":\"$ROOT_DIR\"}"
 
 
