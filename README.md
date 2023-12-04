@@ -10,7 +10,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 - Ansible (version 2.9 or later)
 - Python (version 3.6 or later)
-- 
+
 ```bash
 # macOS or linuxbrew
 brew install ansible
