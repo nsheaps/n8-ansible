@@ -103,7 +103,8 @@ jobs:
 
           FAILED=0
 
-          find ./inventory/ -type f -name "*.cfg" -print | while read -r inventory; do
+
+          while read -r inventory; do
             inventory="$(basename -s .cfg "$inventory")"
             IS_DEFAULT_BRANCH="${{ github.ref_name == github.event.repository.default_branch}}"
             CHECK="--check"
@@ -119,7 +120,7 @@ jobs:
                 FAILED=1
               fi
             fi
-          done
+          done <<< "$(find ./inventory/ -type f -name "*.cfg" -print)"
 
           # if output exists
           if [[ -s output.txt ]]; then
