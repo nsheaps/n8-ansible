@@ -51,6 +51,8 @@ jobs:
       # set up ssh
       - name: Set up SSH
         run: |
+          # start the ssh agent and drop in keys and known_hosts
+          eval $(ssh-agent -s)
           mkdir -p ~/.ssh
           echo "${{ secrets.ANSIBLE_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
