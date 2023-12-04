@@ -76,7 +76,7 @@ jobs:
       #     ansible-galaxy install -r requirements.yml
       - name: ansible ping every inventory
         id: ansible-ping
-        if: !cancelled()
+        if: (!cancelled())
         run: |
           # print every command before running
           set -x
@@ -90,7 +90,7 @@ jobs:
           done
       - name: Run Ansible Dry Run
         id: dry-run
-        if: !cancelled()
+        if: (!cancelled())
         run: |
           ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house --check 2>&1 | tee output.txt
           echo "ansible-dry-run="$(cat output.txt) >> $GITHUB_OUTPUT
@@ -121,7 +121,7 @@ jobs:
       #       --check
 
       - uses: mshick/add-pr-comment@v2
-        if: !cancelled()
+        if: (!cancelled())
         with:
           refresh-message-position: true
           message-id: ${{ env.COMMENT_ID }}
