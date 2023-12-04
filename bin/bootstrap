@@ -1,2 +1,57 @@
 #! /usr/bin/env bash
 
+# exit if something fails
+set -e
+
+# no unset vars
+set -u
+
+# fail on pipes too
+set -o pipefail
+
+# print commands before running them
+set -x
+
+# LPASS_ACCOUNT_EMAIL but defaults to first arg
+LPASS_ACCOUNT_EMAIL="${1:-"example@example.com"}"
+GH_AUTH_USER="${2:-"example"}"
+
+# if brew is installed, use it to install lastpass-cli, otherwise use apt-get
+if [ -x "$(command -v apt-get)" ]; then
+  # sudo apt-get update
+  sudo apt-get install lastpass-cli gh git ansible openssh-server
+elif [ -x "$(command -v brew)" ]; then
+  brew install lastpass-cli gh git ansible
+else
+  sudo apt-get install lastpass-cli gh git ansible openssh-server
+fi
+
+# install openssh-server
+if [ -x "$(command -v apt-get)" ]; then
+  sudo apt-get install openssh-server
+elif [ -x "$(command -v brew)" ]; then
+  brew install openssh-server
+else
+  sudo apt-get install openssh-server
+fi
+
+# login to lastpass
+lpass login --trust "$LPASS_ACCOUNT_EMAIL"
+
+# login to gh
+# gh auth login --with-token <<< "$(lpass show --notes "github.com/$GH_AUTH_USER")"
+gh auth login # login interactively
+
+# make a tempdir to do all of our work
+export ROOT_DIR="$(mktemp -d)"
+cd "$ROOT_DIR"
+
+# clone the repo
+git clone https://github.com/nsheaps/n8-ansible.git
+
+cd n8-ansible
+
+# run ansible
+ansible-playbook ./playbooks/bootstrap.yml --ask-become-pass
+
+

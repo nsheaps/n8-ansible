@@ -1,0 +1,128 @@
+---
+- command: lpass show "Home/ansible node bootstrap config" > $HOME/.bootstraprc
+- shell: source $HOME/.bootstraprc
+- name: Dump known_hosts from lastpass
+  command: lpass show --note "$LPASS_FILE_KNOWN_HOSTS" | sudo tee /etc/ssh/ssh_known_hosts > /dev/null
+  become: true
+- name: set permissions on /etc/ssh/ssh_known_hosts
+  file:
+    path: /etc/ssh/ssh_known_hosts
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+- name: Make ansible user
+  user:
+    name: ansible
+    shell: /bin/bash
+    createhome: yes
+    home: /home/ansible
+  become: true
+- name: Make /home/ansible/.ssh
+  file:
+    path: /home/ansible/.ssh
+    state: directory
+    owner: ansible
+    group: ansible
+    mode: '0700'
+  become: true
+- name: Dump ansible ssh key from lastpass
+  command: lpass show --note "$LPASS_FILE_ANSIBLE_SSH_KEY" > /home/ansible/.ssh/id_rsa
+  become: true
+- name: Set permissions on ansible ssh key
+  file:
+    path: /home/ansible/.ssh/id_rsa
+    owner: ansible
+    group: ansible
+    mode: '0600'
+  become: true
+- name: Dump ansible ssh public key from lastpass
+  command: lpass show --note "$LPASS_FILE_ANSIBLE_SSH_KEY" > /home/ansible/.ssh/id_rsa.pub
+  become: true
+- name: Set permissions on ansible ssh public key
+  file:
+    path: /home/ansible/.ssh/id_rsa.pub
+    owner: ansible
+    group: ansible
+    mode: '0644'
+  become: true
+- name: Accept pubkey in authorized_keys
+  authorized_key:
+    user: ansible
+    state: present
+    key: "{{ lookup('file', '/home/ansible/.ssh/id_rsa.pub') }}"
+  become: true
+- name: Create super-sudo group
+  group:
+    name: super-sudo
+    state: present
+  become: true
+- name: Make super-sudo a passwordless sudoer group
+  template:
+    src: ./templates/super-sudo
+    dest: /etc/sudoers.d/super-sudo
+    owner: root
+    group: root
+    mode: '0440'
+- name: Add ansible to sudo and super-sudo groups
+  user:
+    name: ansible
+    groups: sudo,super-sudo
+    append: yes
+  become: true
+- name: Start ssh agent
+  command: eval "$(ssh-agent -s)"
+  become: true
+  become_user: ansible
+- name: Add ansible ssh key to ssh agent
+  command: ssh-add /home/ansible/.ssh/id_rsa
+  become: true
+  become_user: ansible
+- name: temporarily move /home/ansible/.ssh/known_hosts to /home/ansible/.ssh/known_hosts.old
+  command: mv /home/ansible/.ssh/known_hosts /home/ansible/.ssh/known_hosts.old
+  become: true
+  become_user: ansible
+- name: get the hostname of this box
+  command: hostname
+  register: hostname
+- name: get the IP of this box
+  command: hostname -I
+  register: ip
+- name: Add this box to known_hosts
+  command: |
+    mv /home/ansible/.ssh/known_hosts /home/ansible/.ssh/known_hosts.old
+    echo "# {{ hostname.stdout }}" > /home/ansible/.ssh/known_hosts
+    ssh-copy-id -i /home/ansible/.ssh/id_rsa -o "StrictHostKeyChecking no" ansible@{{ hostname.stdout }}
+    echo "# {{ hostname.stdout }}.local" >> /home/ansible/.ssh/known_hosts
+    ssh-copy-id -i /home/ansible/.ssh/id_rsa -o "StrictHostKeyChecking no" ansible@{{ hostname.stdout }}.local
+    echo "# {{ ip.stdout }}" >> /home/ansible/.ssh/known_hosts
+    ssh-copy-id -i /home/ansible/.ssh/id_rsa -o "StrictHostKeyChecking no" ansible@{{ ip.stdout }}
+    echo " # end {{ hostname.stdout }}" >> /home/ansible/.ssh/known_hosts
+    echo "" >> /home/ansible/.ssh/known_hosts
+    sudo cat /home/ansible/.ssh/known_hosts >> /etc/ssh/ssh_known_hosts
+    cat /home/ansible/.ssh/known_hosts.old >> /home/ansible/.ssh/known_hosts
+    rm /home/ansible/.ssh/known_hosts.old
+  become: true
+  become_user: ansible
+- name: Copy the new /etc/ssh/ssh_known_hosts to $ROOT_DIR/roles/ssh_known_hosts/files/ssh_known_hosts
+  copy:
+    src: /etc/ssh/ssh_known_hosts
+    dest: ../roles/ssh_known_hosts/files/ssh_known_hosts
+    owner: ansible
+    group: ansible
+    mode: '0644'
+  become: true
+# - name: 'Git commit and push the changes to ssh_known_hosts (note: triggers sync)'
+#   command: |
+#     cd $ROOT_DIR
+#     git add roles/ssh_known_hosts/files/ssh_known_hosts
+#     git commit -m "Updated ssh_known_hosts via bootstrapping"
+#     git push
+- name: sync ssh_known_hosts back to lastpass
+  command: |
+    cd $ROOT_DIR
+    lpass edit --non-interactive --notes "$LPASS_FILE_KNOWN_HOSTS" < roles/ssh_known_hosts/files/ssh_known_hosts
+
+
+
+
