@@ -1,10 +1,22 @@
-n8laptop(192.168.0.130) | UNREACHABLE! => {
-    "changed": false,
-    "msg": "Failed to connect to the host via ssh: ansible@192.168.0.130: Permission denied (publickey,password).",
-    "unreachable": true
-}
-n8-server(192.168.0.48) | UNREACHABLE! => {
-    "changed": false,
-    "msg": "Failed to connect to the host via ssh: ansible@192.168.0.48: Permission denied (publickey,password).",
-    "unreachable": true
-}
+
+PLAY [Echo a string on all n8house hosts] **************************************
+
+TASK [Gathering Facts] *********************************************************
+fatal: [n8laptop(192.168.0.130)]: UNREACHABLE! => {"changed": false, "msg": "Failed to connect to the host via ssh: ansible@192.168.0.130: Permission denied (publickey,password).", "unreachable": true}
+ok: [n8-server(192.168.0.48)]
+
+PLAY [Echo a string on all n8house hosts] **************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [n8-server(192.168.0.48)]
+
+TASK [../roles/say-hello : Copy notify-send-all file to /usr/local/bin] ********
+ok: [n8-server(192.168.0.48)]
+
+TASK [../roles/say-hello : Popup Notification] *********************************
+changed: [n8-server(192.168.0.48)]
+
+PLAY RECAP *********************************************************************
+n8-server(192.168.0.48)    : ok=4    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+n8laptop(192.168.0.130)    : ok=0    changed=0    unreachable=1    failed=0    skipped=0    rescued=0    ignored=0   
+
