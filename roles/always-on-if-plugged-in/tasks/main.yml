@@ -12,6 +12,11 @@
     # - { regexp: '^kernel.shmmax', line: 'kernel.shmmax = 134217728' }
     # - { regexp: '^fs.file-max', line: 'fs.file-max = 65536' }
   become: true
+- name: Restart systemd-logind
+  service:
+    name: systemd-logind
+    state: restarted
+  become: true
 - name: notify "Power options configured by ansible"
   shell: notify-send-all -t 100 "Power options reconfigured by ansible" "Device will now remain on when plugged in, even if lid is closed."
 
