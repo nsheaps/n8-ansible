@@ -44,7 +44,7 @@ jobs:
         run: |
           sed -i "s/remote vpn.example.com 1194/remote ${{ secrets.VPN_ENDPOINT_HOST }} ${{ secrets.VPN_ENDPOINT_PORT }}/g" .github/config/client.ovpn
           echo "::add-mask::$(dig ${{ secrets.VPN_ENDPOINT_HOST }} +short)"
-      - name: Connect to VPN
+      - name: Connect to VPN - output will hang until connection is closed
         uses: "kota65535/github-openvpn-connect-action@v2"
         with:
           config_file: .github/config/client.ovpn
