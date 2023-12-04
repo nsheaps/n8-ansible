@@ -1,6 +1,5 @@
 ---
 - name: Popup Notification
-  command: |
-    notify-send "Ansible" "Ansible was just run on this computer from github"
+  command: notify-send-all "Ansible" "Ansible was just run on this computer from github"
   register: result
 

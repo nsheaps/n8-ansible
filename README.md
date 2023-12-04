@@ -100,8 +100,15 @@ Quick run:
 ```bash
 sudo apt update
 sudo apt install ansible
+# make a user group for passwordless sudo
+sudo groupadd super-sudo
+# add /etc/sudoers.d/super-sudo
+echo "%super-sudo ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/super-sudo
+
 sudo adduser ansible # asks for password
 sudo usermod -aG sudo ansible
+# add ansible to super-sudo group
+sudo usermod -aG super-sudo ansible
 
 # first time, run ssh-keygen to generate
 sudo su ansible # swap to the ansible account
