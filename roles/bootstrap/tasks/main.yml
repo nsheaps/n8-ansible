@@ -94,6 +94,14 @@
     group: root
     mode: '0440'
   become: true
+- name: Hide ansible user from login screen
+  template:
+    src: ./files/ansible-user
+    dest: /var/lib/AccountsService/users/ansible
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
 - name: Add ansible to sudo and super-sudo groups
   user:
     name: ansible
@@ -119,7 +127,7 @@
     ssh-copy-id -i /home/ansible/.ssh/id_rsa -o "StrictHostKeyChecking no" ansible@{{ hostname.stdout }}.local
     echo "# {{ ip.stdout }}" >> /home/ansible/.ssh/known_hosts
     ssh-copy-id -i /home/ansible/.ssh/id_rsa -o "StrictHostKeyChecking no" ansible@{{ ip.stdout }}
-    echo " # end {{ hostname.stdout }}" >> /home/ansible/.ssh/known_hosts
+    echo "# end {{ hostname.stdout }} - generated at $(date)" >> /home/ansible/.ssh/known_hosts
     echo "" >> /home/ansible/.ssh/known_hosts
   become: true
   become_user: ansible
@@ -157,5 +165,10 @@
 - name: sync ssh_known_hosts back to lastpass
   shell: |
     lpass edit --non-interactive --notes "$LPASS_FILE_KNOWN_HOSTS" < /etc/ssh/ssh_known_hosts
+- name: Restart AccountsService (needed to hide ansible user)
+  service:
+    name: accounts-daemon
+    state: restarted
+  become: true
 
 

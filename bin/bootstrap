@@ -10,28 +10,50 @@ set -u
 set -o pipefail
 
 # print commands before running them
-set -x
+# set -x
 
 # LPASS_ACCOUNT_EMAIL but defaults to first arg
 LPASS_ACCOUNT_EMAIL="${1:-"example@example.com"}"
 GH_AUTH_USER="${2:-"example"}"
 REPO="${3:-"https://github.com/nsheaps/n8-ansible.git"}"
 
-# if brew is installed, use it to install lastpass-cli, otherwise use apt-get
+# try to sudo to make sure we have sudo access
+sudo echo "sudo access granted"
+
+# prefer apt for installing packages, but use brew if it's available
 if [ -x "$(command -v apt-get)" ]; then
-  # sudo apt-get update
-  sudo apt-get install lastpass-cli gh git ansible openssh-server
+  # if gum is not installed, install it
+  # gum: https://github.com/charmbracelet/gum
+  if [ -x "$(command -v gum)" ]; then
+    gum spin --spinner minidot --title "Updating apt sources" --show-output -- sudo apt-get update
+  else
+    sudo apt-get update
+    # Debian/Ubuntu
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
+    sudo apt-get install -y gum
+  fi
+
+  gum spin --spinner minidot --title "Installing base dependencies (git, gh, lastpass-cli, ansible) using apt" --show-output -- sudo apt-get update && sudo apt-get install -y lastpass-cli gh git ansible gum
+
 elif [ -x "$(command -v brew)" ]; then
-  brew install lastpass-cli gh git ansible
+  brew install gum
+
+  gum spin --spinner minidot --title "Installing base dependencies (git, gh, lastpass-cli, ansible) using brew" --show-output -- brew install lastpass-cli gh git ansible
 else
-  sudo apt-get install lastpass-cli gh git ansible openssh-server
+  echo "PANIC: unsupported system type, apt and brew are not installed"
+  exit 1
 fi
 
 # install openssh-server
 if [ -x "$(command -v apt-get)" ]; then
-  sudo apt-get install openssh-server
-elif [ -x "$(command -v brew)" ]; then
-  brew install openssh-server
+  gum spin --spinner minidot --title "Installing openssh-server using apt" --show-output -- sudo apt-get install openssh-server
+# else if this is a mac system (aka darwin)
+elif [ "$(uname -s)" == "Darwin" ]; then
+  # gum spin --spinner minidot --title "Enabling SSH " --show-output -- brew install openssh-server
+  echo "PANIC: unsupported system type, need to add ssh install instructions for macos"
+  # note for future: https://superuser.com/questions/104929/how-do-you-run-a-ssh-server-on-mac-os-x
 else
   sudo apt-get install openssh-server
 fi
@@ -43,22 +65,38 @@ lpass login --trust "$LPASS_ACCOUNT_EMAIL"
 # gh auth login --with-token <<< "$(lpass show --notes "github.com/$GH_AUTH_USER")"
 gh auth login # login interactively
 
-
 # if the upstream of this repo is $REPO, cd to the root of the repo, otherwise, check it out
 if [ "$(git config --get remote.origin.url)" == "$REPO" ]; then
   cd "$(git rev-parse --show-toplevel)"
   ROOT_DIR="$(pwd)"
   export ROOT_DIR
-else
+elif gum confirm "Checkout n8-ansible to random temp dir?"; then
   # make a tempdir to do all of our work
-  ROOT_DIR="$(mktemp -d)"
-  export ROOT_DIR
-  cd "$ROOT_DIR"
+  TEMP_DIR="$(mktemp -d)"
+  cd "$TEMP_DIR"
 
   # clone the repo
-  git clone https://github.com/nsheaps/n8-ansible.git
-
+  git clone "$REPO"
   cd n8-ansible
+  ROOT_DIR="$(pwd)"
+  export ROOT_DIR
+# ask if the user would like to check out the repo to ~/src/n8-ansible, $(mktemp -d), other, or exit
+else
+  gum style --border-foreground "#FF0" --border thick --padding "0 4"  "Enter a directory to check out n8-ansible to, or ctrl-c to exit"
+  REPO_NAME="$(echo "$REPO" | cut -d '/' -f5 | cut -d '.' -f1)"
+  INPUT="$(gum input --value "~/src/n8-ansible")"
+  # remove any trailing slashes from the input
+  INPUT="$(echo "$INPUT" | sed 's/\/$//g')"
+  # get last folder name from input
+  REPO_NAME="$(basename "$INPUT")"
+  LIVES_IN="$(dirname "$INPUT")"
+
+  mkdir -p "$LIVES_IN"
+  cd "$LIVES_IN"
+  git clone "$REPO" "$REPO_NAME"
+  cd "$REPO_NAME"
+  ROOT_DIR="$(pwd)"
+  export ROOT_DIR
 fi
 
 
@@ -68,4 +106,4 @@ lpass show "Home/ansible node bootstrap config" --note > "$HOME/.bootstraprc"
 # run ansible
 ansible-playbook ./playbooks/bootstrap.yml --ask-become-pass --extra-vars "{\"running_as\":\"$USER\", \"root_dir\":\"$ROOT_DIR\"}"
 
-
+gum style --border-foreground "#0F0" --border thick --padding "2 4"  "Bootstrap complete!"
