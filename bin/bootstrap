@@ -2,7 +2,7 @@
 
 ### QUICKSETUP
 # RUN THIS (don't use curl because it's not always installed):
-# wget -O - https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/bootstrap | bash
+# u="https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/bootstrap"; t="$(mktemp)"; wget -O - "$u" > "$t" && chmod +x "$t" && "$t"; rm "$t" || echo "not found"
 
 # exit if something fails
 set -e
@@ -112,7 +112,7 @@ elif gum confirm "Checkout n8-ansible to random temp dir?"; then
 else
   gum style --border-foreground "#FF0" --border thick --padding "0 4"  "Enter a directory to check out n8-ansible to, or ctrl-c to exit"
   REPO_NAME="$(echo "$REPO" | cut -d '/' -f5 | cut -d '.' -f1)"
-  INPUT="$(gum input --value "~/src/n8-ansible")"
+  INPUT="$(gum input --value "$HOME/src/n8-ansible")"
   # remove any trailing slashes from the input
   INPUT="$(echo "$INPUT" | sed 's/\/$//g')"
   # get last folder name from input
