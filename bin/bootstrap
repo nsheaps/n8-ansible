@@ -13,6 +13,17 @@ set -u
 # fail on pipes too
 set -o pipefail
 
+WORKING_DIR="$(pwd)"
+function exit_handler() {
+  exit_code="$?"
+  # cleanup before exiting
+
+  cd "$WORKING_DIR"
+  exit "$exit_code"
+}
+
+trap exit_handler EXIT
+
 # print commands before running them
 # set -x
 # try to sudo to make sure we have sudo access
@@ -51,12 +62,16 @@ if [ -x "$(command -v apt-get)" ]; then
     git \
     gh \
     lastpass-cli \
+    ca-certificates \
     curl \
     ansible \
     gum
-  pushd .
-  # if lpass exists and lpass --version != 'LastPass CLI v1.3.7'
-  if [ -x "$(command -v lpass)" ] && [ "$(lpass --version)" != "LastPass CLI v1.3.7" ]; then
+  # if lpass exists and lpass --version != 'LastPass CLI v1.3.7', install from source because ubuntu repo
+  # only has 1.3.3 which has a bug with certificates. brew does not have this issue.
+  if [ -x "$(command -v lpass)" ] && [ "$(lpass --version)" = "LastPass CLI v1.3.7" ]; then
+    gum style --border-foreground "#FF0" --border thick --padding "0 0" "lastpass-cli version: $(lpass --version)"
+  else
+    pushd .
     TEMP_DIR="$(mktemp -d)"
     cd "$TEMP_DIR"
     gum spin --spinner minidot --title "Downloading lastpass-cli" --show-output -- \
@@ -68,8 +83,6 @@ if [ -x "$(command -v apt-get)" ]; then
     gum style --border-foreground "#FF0" --border thick --padding "0 0" "lastpass-cli version: $(lpass --version)"
     popd
     rm -rf "$TEMP_DIR"
-  else
-    gum style --border-foreground "#FF0" --border thick --padding "0 0" "lastpass-cli version: $(lpass --version)"
   fi
 elif [ -x "$(command -v brew)" ]; then
   if [ ! -x "$(command -v gum)" ]; then
@@ -126,9 +139,11 @@ gh auth login # login interactively
 REPO="${2:-}"
 # if REPO is unset
 if [ -z "$REPO" ]; then
-  gum style --border-foreground "#FF0" --border thick --padding "0 0" "Upstream config repo:"
+  gum style --border-foreground "#FF0" --border thick --padding "0 0" "Enter upstream config repo (https url please)"
   REPO="$(gum input --value "https://github.com/nsheaps/n8-ansible.git" --width 0)"
 fi
+OWNER_AND_NAME="$(echo "$REPO" | cut -d '/' -f4-5 | cut -d '.' -f1)"
+REPO_NAME="$(echo "$OWNER_AND_NAME" | cut -d '/' -f1)"
 
 
 # if it's already checked out at $HOME/src/n8-ansible, just go there and pull
@@ -147,21 +162,20 @@ elif [ "$(git config --get remote.origin.url)" == "$REPO" ]; then
   cd "$(git rev-parse --show-toplevel)"
   ROOT_DIR="$(pwd)"
   export ROOT_DIR
-elif gum confirm "Checkout n8-ansible to random temp dir?"; then
+elif gum confirm "Checkout $REPO_NAME to random temp dir?"; then
   # make a tempdir to do all of our work
   TEMP_DIR="$(mktemp -d)"
   cd "$TEMP_DIR"
 
   # clone the repo
-  git clone "$REPO"
-  cd n8-ansible
+  git clone "$REPO" "$REPO_NAME"
+  cd "$REPO_NAME"
   ROOT_DIR="$(pwd)"
   export ROOT_DIR
 # ask if the user would like to check out the repo to ~/src/n8-ansible, $(mktemp -d), other, or exit
 else
-  gum style --border-foreground "#FF0" --border thick --padding "0 4" "Enter a directory to check out n8-ansible to, or ctrl-c to exit"
-  REPO_NAME="$(echo "$REPO" | cut -d '/' -f5 | cut -d '.' -f1)"
-  INPUT="$(gum input --value "$HOME/src/n8-ansible")"
+  gum style --border-foreground "#FF0" --border thick --padding "0 4" "Enter a directory to check out $REPO_NAME to, or ctrl-c to exit"
+  INPUT="$(gum input --value "$HOME/src/$REPO_NAME")"
   # remove any trailing slashes from the input
   INPUT="$(echo "$INPUT" | sed 's/\/$//g')"
   # get last folder name from input
