@@ -129,7 +129,6 @@ jobs:
               if ! ansible-playbook "./playbooks/$inventory.yml" \
                 --inventory "./inventory/$inventory.cfg" \
                 $CHECK \
-                --extra-vars "@inventory/group_vars/all.yml" \
                 --extra-vars "@extra_vars.json"; then
                 echo "ANSIBLE RUN FAILED FOR $inventory"
                 FAILED=1
@@ -138,7 +137,6 @@ jobs:
               if ! ansible-playbook "./playbooks/$inventory.yml" \
                 --inventory "./inventory/$inventory.cfg" \
                 $CHECK \
-                --extra-vars "@inventory/group_vars/all.yml" \
                 --extra-vars "@extra_vars.json" 2>&1 | tee output.txt -a; then
                 echo "ANSIBLE RUN FAILED FOR $inventory"
                 FAILED=1
