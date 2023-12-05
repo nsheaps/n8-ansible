@@ -108,10 +108,10 @@ jobs:
 
           while read -r inventory; do
             inventory="$(basename -s .cfg "$inventory")"
-            IS_DEFAULT_BRANCH="${{ github.ref_name == github.event.repository.default_branch}}"
+            IS_DEFAULT_BRANCH="${{ github.ref_name == github.event.repository.default_branch }}"
             CHECK="--check"
             GIT_COMMIT_SUBJET="$(echo "$GIT_COMMIT_MESSAGE" | head -n 1)"
-            EXTRA_VARS=" --extra-vars \"{\\\"commit_message\\\": \\\"$GIT_COMMIT_SUBJECT\\\"}\""
+            EXTRA_VARS="--extra-vars commit_message='$(printf "%q" "$GIT_COMMIT_MESSAGE")'"
             if [[ "$IS_DEFAULT_BRANCH" == "true" ]]; then
               CHECK=""
 
