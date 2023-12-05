@@ -15,7 +15,6 @@ set -o pipefail
 
 # print commands before running them
 # set -x
-
 # try to sudo to make sure we have sudo access
 sudo echo "sudo access granted"
 
@@ -53,7 +52,7 @@ else
 fi
 
 # LPASS_ACCOUNT_EMAIL but defaults to first arg
-LPASS_ACCOUNT_EMAIL="$1"
+LPASS_ACCOUNT_EMAIL="${1:-}"
 # if LPASS_ACCOUNT_EMAIL is unset
 if [ -z "$LPASS_ACCOUNT_EMAIL" ]; then
   # if the user has a lastpass account, ask for their email
@@ -63,7 +62,7 @@ if [ -z "$LPASS_ACCOUNT_EMAIL" ]; then
     LPASS_ACCOUNT_EMAIL="$(gum input --placeholder \"example@example.com\")"
   fi
 fi
-REPO="$2"
+REPO="${2:-}"
 # if REPO is unset
 if [ -z "$REPO" ]; then
   gum style --border-foreground "#FF0" --border thick --padding "0 0"  "Upstream config repo:"
