@@ -21,6 +21,7 @@ sudo echo "sudo access granted"
 
 # prefer apt for installing packages, but use brew if it's available
 if [ -x "$(command -v apt-get)" ]; then
+  sudo apt-get install -y curl
   # if gum is not installed, install it
   # gum: https://github.com/charmbracelet/gum
   if [ -x "$(command -v gum)" ]; then
