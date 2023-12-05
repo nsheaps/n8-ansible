@@ -130,8 +130,20 @@ if [ -z "$REPO" ]; then
   REPO="$(gum input --value "https://github.com/nsheaps/n8-ansible.git" --width 0)"
 fi
 
+
+# if it's already checked out at $HOME/src/n8-ansible, just go there and pull
+if [ -d "$HOME/src/n8-ansible" ]; then
+  cd "$HOME/src/n8-ansible"
+  # confirm that the git remote origin is set to $REPO
+  if [ "$(git config --get remote.origin.url)" != "$REPO" ]; then
+    echo "PANIC: $HOME/src/n8-ansible exists but git remote origin is not set to $REPO"
+    exit 1
+  fi
+  git pull
+  ROOT_DIR="$(pwd)"
+  export ROOT_DIR
 # if the upstream of this repo is $REPO, cd to the root of the repo, otherwise, check it out
-if [ "$(git config --get remote.origin.url)" == "$REPO" ]; then
+elif [ "$(git config --get remote.origin.url)" == "$REPO" ]; then
   cd "$(git rev-parse --show-toplevel)"
   ROOT_DIR="$(pwd)"
   export ROOT_DIR
@@ -145,20 +157,9 @@ elif gum confirm "Checkout n8-ansible to random temp dir?"; then
   cd n8-ansible
   ROOT_DIR="$(pwd)"
   export ROOT_DIR
-# if it's already checked out at $HOME/src/n8-ansible, just go there and pull
-elif [ -d "$HOME/src/n8-ansible" ]; then
-  cd "$HOME/src/n8-ansible"
-  # confirm that the git remote origin is set to $REPO
-  if [ "$(git config --get remote.origin.url)" != "$REPO" ]; then
-    echo "PANIC: $HOME/src/n8-ansible exists but git remote origin is not set to $REPO"
-    exit 1
-  fi
-  git pull
-  ROOT_DIR="$(pwd)"
-  export ROOT_DIR
 # ask if the user would like to check out the repo to ~/src/n8-ansible, $(mktemp -d), other, or exit
 else
-  gum style --border-foreground "#FF0" --border thick --padding "0 4"  "Enter a directory to check out n8-ansible to, or ctrl-c to exit"
+  gum style --border-foreground "#FF0" --border thick --padding "0 4" "Enter a directory to check out n8-ansible to, or ctrl-c to exit"
   REPO_NAME="$(echo "$REPO" | cut -d '/' -f5 | cut -d '.' -f1)"
   INPUT="$(gum input --value "$HOME/src/n8-ansible")"
   # remove any trailing slashes from the input
