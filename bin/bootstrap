@@ -122,7 +122,7 @@ REPO="${2:-}"
 # if REPO is unset
 if [ -z "$REPO" ]; then
   gum style --border-foreground "#FF0" --border thick --padding "0 0" "Upstream config repo:"
-  REPO="$(gum input --value "https://github.com/nsheaps/n8-ansible.git" -width 0)"
+  REPO="$(gum input --value "https://github.com/nsheaps/n8-ansible.git" --width 0)"
 fi
 
 # if the upstream of this repo is $REPO, cd to the root of the repo, otherwise, check it out
