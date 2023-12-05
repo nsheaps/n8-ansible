@@ -14,7 +14,7 @@ set -u
 set -o pipefail
 
 # print commands before running them
-[[ "$DEBUG" = "true" ]] && set -x
+set -x
 # try to sudo to make sure we have sudo access
 sudo echo "sudo access granted"
 
