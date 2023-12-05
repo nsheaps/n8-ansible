@@ -9,8 +9,9 @@
     # options are ignore hibernate suspend poweroff reboot
     line: 'HandleLidSwitchExternalPower=ignore'
   become: true
-- name: notify "Power options configured by ansible"
-  shell: notify-send-all -t 100 "YOU WILL BE LOGGED OUT" Power options reconfigured by ansible. Device will now remain on when plugged in, even if lid is closed."
+- name: 'notify "Power options configured by ansible"'
+  shell: |
+    notify-send-all -t 100 "YOU WILL BE LOGGED OUT IN 10s" "Power options reconfigured by ansible. Device will now remain on when plugged in, even if lid is closed."
   when: changed_lines.changed
 - name: sleep for 15s
   pause:
