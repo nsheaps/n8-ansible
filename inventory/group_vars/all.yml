@@ -1,4 +1,5 @@
 ---
+git_commit_message: "fake(ci): fake commit message first line"
 git_commit_subject: "fake(ci): fake commit message first line"
 git_sha: "XXXXXXXX"
 git_short_sha: "XXXXXXXX"
