@@ -58,22 +58,22 @@ if [ -z "$LPASS_ACCOUNT_EMAIL" ]; then
   # if the user has a lastpass account, ask for their email
   if ! lpass status > /dev/null; then
     # ask for their email
-    gum style --border-foreground "#FF0" --border thick --padding "0 0"  "Enter your lastpass account email to login to lpass"
-    LPASS_ACCOUNT_EMAIL="$(gum input --placeholder \"example@example.com\")"
+    gum style --border-foreground "#FF0" --border thick --padding "0 0" "Enter your lastpass account email to login to lpass"
+    LPASS_ACCOUNT_EMAIL="$(gum input --placeholder "example@example.com")"
   fi
 fi
 
 # login to lastpass
 if ! lpass status > /dev/null; then
-  gum style --border-foreground "#FF0" --border thick --padding "0 0"  "Logging in to lastpass (user: $LPASS_ACCOUNT_EMAIL)"
+  gum style --border-foreground "#FF0" --border thick --padding "0 0" "Logging in to lastpass (user: $LPASS_ACCOUNT_EMAIL)"
   lpass login --trust "$LPASS_ACCOUNT_EMAIL"
 fi
 
 REPO="${2:-}"
 # if REPO is unset
 if [ -z "$REPO" ]; then
-  gum style --border-foreground "#FF0" --border thick --padding "0 0"  "Upstream config repo:"
-  REPO="$(gum input --value \"https://github.com/nsheaps/n8-ansible.git\")"
+  gum style --border-foreground "#FF0" --border thick --padding "0 0" "Upstream config repo:"
+  REPO="$(gum input --value "https://github.com/nsheaps/n8-ansible.git")"
 fi
 
 # install openssh-server
