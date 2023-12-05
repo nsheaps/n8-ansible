@@ -41,6 +41,7 @@ if [ -x "$(command -v apt-get)" ]; then
     curl \
     libcurl3-openssl-dev  \
     libssl1.0 \
+    libssl-dev \
     libxml2 \
     libxml2-dev  \
     pkg-config \
