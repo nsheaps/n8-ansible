@@ -14,7 +14,7 @@ set -u
 set -o pipefail
 
 # print commands before running them
-set -x
+# set -x
 # try to sudo to make sure we have sudo access
 sudo echo "sudo access granted"
 
@@ -84,6 +84,18 @@ else
   exit 1
 fi
 
+# install openssh-server
+if [ -x "$(command -v apt-get)" ]; then
+  gum spin --spinner minidot --title "Installing openssh-server using apt" --show-output -- sudo apt-get install -y openssh-server
+# else if this is a mac system (aka darwin)
+elif [ "$(uname -s)" == "Darwin" ]; then
+  # gum spin --spinner minidot --title "Enabling SSH " --show-output -- brew install openssh-server
+  echo "PANIC: unsupported system type, need to add ssh install instructions for macos"
+  # note for future: https://superuser.com/questions/104929/how-do-you-run-a-ssh-server-on-mac-os-x
+else
+  echo "PANIC: unsupported system type, need to add ssh install instructions for other OSs"
+fi
+
 # LPASS_ACCOUNT_EMAIL but defaults to first arg
 LPASS_ACCOUNT_EMAIL="${1:-}"
 # if LPASS_ACCOUNT_EMAIL is unset
@@ -102,29 +114,16 @@ if ! lpass status > /dev/null; then
   lpass login --trust "$LPASS_ACCOUNT_EMAIL"
 fi
 
+# login to gh
+# gh auth login --with-token <<< "$(lpass show --notes "github.com/$GH_AUTH_USER")"
+gh auth login # login interactively
+
 REPO="${2:-}"
 # if REPO is unset
 if [ -z "$REPO" ]; then
   gum style --border-foreground "#FF0" --border thick --padding "0 0" "Upstream config repo:"
-  REPO="$(gum input --value "https://github.com/nsheaps/n8-ansible.git")"
+  REPO="$(gum input --value "https://github.com/nsheaps/n8-ansible.git" -width 0)"
 fi
-
-# install openssh-server
-if [ -x "$(command -v apt-get)" ]; then
-  gum spin --spinner minidot --title "Installing openssh-server using apt" --show-output -- sudo apt-get install -y openssh-server
-# else if this is a mac system (aka darwin)
-elif [ "$(uname -s)" == "Darwin" ]; then
-  # gum spin --spinner minidot --title "Enabling SSH " --show-output -- brew install openssh-server
-  echo "PANIC: unsupported system type, need to add ssh install instructions for macos"
-  # note for future: https://superuser.com/questions/104929/how-do-you-run-a-ssh-server-on-mac-os-x
-else
-  echo "PANIC: unsupported system type, need to add ssh install instructions for other OSs"
-fi
-
-
-# login to gh
-# gh auth login --with-token <<< "$(lpass show --notes "github.com/$GH_AUTH_USER")"
-gh auth login # login interactively
 
 # if the upstream of this repo is $REPO, cd to the root of the repo, otherwise, check it out
 if [ "$(git config --get remote.origin.url)" == "$REPO" ]; then
