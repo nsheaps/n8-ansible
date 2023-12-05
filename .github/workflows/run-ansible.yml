@@ -120,12 +120,12 @@ jobs:
             if [[ "$IS_DEFAULT_BRANCH" == "true" ]]; then
               CHECK=""
 
-              if ! ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" "$CHECK" --extra-vars "@extra_vars.json"; then
+              if ! ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" $CHECK --extra-vars "@extra_vars.json"; then
                 echo "ANSIBLE RUN FAILED FOR $inventory"
                 FAILED=1
               fi
             else
-              if ! ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" "$CHECK" --extra-vars "@extra_vars.json" 2>&1 | tee output.txt -a; then
+              if ! ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" $CHECK --extra-vars "@extra_vars.json" 2>&1 | tee output.txt -a; then
                 echo "ANSIBLE RUN FAILED FOR $inventory"
                 FAILED=1
               fi
