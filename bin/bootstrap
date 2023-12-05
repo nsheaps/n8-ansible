@@ -1,5 +1,9 @@
 #! /usr/bin/env bash
 
+### QUICKSETUP
+# RUN THIS (don't use curl because it's not always installed):
+# wget -O - https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/bootstrap | bash
+
 # exit if something fails
 set -e
 
@@ -12,11 +16,6 @@ set -o pipefail
 # print commands before running them
 # set -x
 
-# LPASS_ACCOUNT_EMAIL but defaults to first arg
-LPASS_ACCOUNT_EMAIL="${1:-"example@example.com"}"
-GH_AUTH_USER="${2:-"example"}"
-REPO="${3:-"https://github.com/nsheaps/n8-ansible.git"}"
-
 # try to sudo to make sure we have sudo access
 sudo echo "sudo access granted"
 
@@ -27,35 +26,59 @@ if [ -x "$(command -v apt-get)" ]; then
   if [ -x "$(command -v gum)" ]; then
     gum spin --spinner minidot --title "Updating apt sources" --show-output -- sudo apt-get update
   else
-    sudo apt-get update
     # Debian/Ubuntu
     sudo mkdir -p /etc/apt/keyrings
     curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
     echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
-    sudo apt-get install -y gum
+    sudo apt-get update && sudo apt-get install -y gum
   fi
-
-  gum spin --spinner minidot --title "Installing base dependencies (git, gh, lastpass-cli, ansible) using apt" --show-output -- sudo apt-get update && sudo apt-get install -y lastpass-cli gh git ansible gum
-
+  command -v git || gum spin --spinner minidot --title "Installing git using apt" --show-output -- sudo apt-get install -y git
+  command -v gh || gum spin --spinner minidot --title "Installing gh using apt" --show-output -- sudo apt-get install -y gh
+  command -v lastpass-cli || gum spin --spinner minidot --title "Installing lastpass-cli using apt" --show-output -- sudo apt-get install -y lastpass-cli
+  command -v curl || gum spin --spinner minidot --title "Installing curl using apt" --show-output -- sudo apt-get install -y curl
+  command -v ansible || gum spin --spinner minidot --title "Installing ansible using apt" --show-output -- sudo apt-get install -y ansible
+  command -v gum || gum spin --spinner minidot --title "Installing gum using apt" --show-output -- sudo apt-get install -y gum
 elif [ -x "$(command -v brew)" ]; then
   brew install gum
 
-  gum spin --spinner minidot --title "Installing base dependencies (git, gh, lastpass-cli, ansible) using brew" --show-output -- brew install lastpass-cli gh git ansible
+  command -v git || gum spin --spinner minidot --title "Installing git using brew" --show-output -- brew install git
+  command -v gh || gum spin --spinner minidot --title "Installing gh using brew" --show-output -- brew install gh
+  command -v lastpass-cli || gum spin --spinner minidot --title "Installing lastpass-cli using brew" --show-output -- brew install lastpass-cli
+  command -v curl || gum spin --spinner minidot --title "Installing curl using brew" --show-output -- brew install curl
+  command -v ansible || gum spin --spinner minidot --title "Installing ansible using brew" --show-output -- brew install ansible
 else
   echo "PANIC: unsupported system type, apt and brew are not installed"
   exit 1
 fi
 
+# LPASS_ACCOUNT_EMAIL but defaults to first arg
+LPASS_ACCOUNT_EMAIL="$1"
+# if LPASS_ACCOUNT_EMAIL is unset
+if [ -z "$LPASS_ACCOUNT_EMAIL" ]; then
+  # if the user has a lastpass account, ask for their email
+  if ! lpass status; then
+    # ask for their email
+    gum style --border-foreground "#FF0" --border thick --padding "0 0"  "Enter your lastpass account email to login to lpass"
+    LPASS_ACCOUNT_EMAIL="$(gum input --placeholder \"example@example.com\")"
+  fi
+fi
+REPO="$2"
+# if REPO is unset
+if [ -z "$REPO" ]; then
+  gum style --border-foreground "#FF0" --border thick --padding "0 0"  "Upstream config repo:"
+  REPO="$(gum input --value \"https://github.com/nsheaps/n8-ansible.git\")"
+fi
+
 # install openssh-server
 if [ -x "$(command -v apt-get)" ]; then
-  gum spin --spinner minidot --title "Installing openssh-server using apt" --show-output -- sudo apt-get install openssh-server
+  gum spin --spinner minidot --title "Installing openssh-server using apt" --show-output -- sudo apt-get install -y openssh-server
 # else if this is a mac system (aka darwin)
 elif [ "$(uname -s)" == "Darwin" ]; then
   # gum spin --spinner minidot --title "Enabling SSH " --show-output -- brew install openssh-server
   echo "PANIC: unsupported system type, need to add ssh install instructions for macos"
   # note for future: https://superuser.com/questions/104929/how-do-you-run-a-ssh-server-on-mac-os-x
 else
-  sudo apt-get install openssh-server
+  echo "PANIC: unsupported system type, need to add ssh install instructions for other OSs"
 fi
 
 # login to lastpass
