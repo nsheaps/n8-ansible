@@ -80,7 +80,7 @@ if [ -x "$(command -v apt-get)" ]; then
     cd lastpass-cli-1.3.7
     gum spin --spinner minidot --title "Building lastpass-cli" --show-output -- make
     gum spin --spinner minidot --title "Installing lastpass-cli" --show-output -- sudo make install
-    gum style --border-foreground "#FF0" --border thick --padding "0 0" "lastpass-cli version: $(lpass --version)"
+    gum style --border-foreground "#0F0" --border thick --padding "0 0" "lastpass-cli version: $(lpass --version)"
     popd
     rm -rf "$TEMP_DIR"
   fi
