@@ -111,14 +111,17 @@ jobs:
             IS_DEFAULT_BRANCH="${{ github.ref_name == github.event.repository.default_branch }}"
             CHECK="--check"
             GIT_COMMIT_SUBJET="$(echo "$GIT_COMMIT_MESSAGE" | head -n 1)"
+            GIT_SHA="${{ github.sha }}"
             GIT_SHORT_SHA="$(echo "${{ github.sha }}" | head -c 7)"
             GIT_REPO="${{ github.repository }}"
             jq -n \
               --arg git_commit_subject "$GIT_COMMIT_SUBJET" \
+              --arg git_sha "$GIT_SHA" \
               --arg git_short_sha "$GIT_SHORT_SHA" \
               --arg git_repo "$GIT_REPO" \
               '{
                 "git_commit_subject": $git_commit_subject,
+                "git_sha": $git_sha,
                 "git_short_sha": $git_short_sha,
                 "git_repo": $git_repo
               }' > extra_vars.json

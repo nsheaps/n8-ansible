@@ -1,5 +1,6 @@
 ---
 git_commit_subject: "fake(ci): fake commit message first line"
-git_commit_sha: "XXXXXXXX"
+git_sha: "XXXXXXXX"
+git_short_sha: "XXXXXXXX"
 git_repo: "example/example"
 message: "message from all.yml"
