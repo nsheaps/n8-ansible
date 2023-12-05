@@ -8,6 +8,6 @@
 - name: Popup Notification
   command: |
     notify-send-all -t 10000 "Ansible" "Ansible was just run. Commit message:\
-      {{ commit_message }}"
+      {{ git_commit_subject }}"
   register: result
 
