@@ -120,8 +120,7 @@ jobs:
               '{
                 "git_commit_subject": $git_commit_subject,
                 "git_short_sha": $git_short_sha,
-                "git_repo": $git_repo,
-                "is_default_branch": $is_default_branch
+                "git_repo": $git_repo
               }' > extra_vars.json
               cat extra_vars.json
             if [[ "$IS_DEFAULT_BRANCH" == "true" ]]; then
