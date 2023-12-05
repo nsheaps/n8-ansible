@@ -2,7 +2,7 @@
 
 ### QUICKSETUP
 # RUN THIS (don't use curl because it's not always installed):
-# u="https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/bootstrap"; t="$(mktemp)"; wget -O - "$u" > "$t" && chmod +x "$t" && "$t"; rm "$t" || echo "not found"
+# u="https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/bootstrap?random=(shuf -i 0-99999 -n 1)"; t="$(mktemp)"; wget -O - "$u" > "$t" && chmod +x "$t" && "$t"; rm "$t" || echo "not found"
 
 # exit if something fails
 set -e
