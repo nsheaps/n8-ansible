@@ -111,16 +111,21 @@ jobs:
             IS_DEFAULT_BRANCH="${{ github.ref_name == github.event.repository.default_branch }}"
             CHECK="--check"
             GIT_COMMIT_SUBJET="$(echo "$GIT_COMMIT_MESSAGE" | head -n 1)"
-            EXTRA_VARS="--extra-vars commit_message='$(printf "%q" "$GIT_COMMIT_MESSAGE")'"
+            jq -n --arg git_commit_subject "$GIT_COMMIT_SUBJET" --arg is_default_branch "$IS_DEFAULT_BRANCH" \
+              '{
+                "git_commit_subject": $git_commit_subject,
+                "is_default_branch": $is_default_branch
+              }' > extra_vars.json
+              cat extra_vars.json
             if [[ "$IS_DEFAULT_BRANCH" == "true" ]]; then
               CHECK=""
 
-              if ! ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" "$CHECK" $EXTRA_VARS; then
+              if ! ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" "$CHECK" --extra-vars "@extra_vars.json"; then
                 echo "ANSIBLE RUN FAILED FOR $inventory"
                 FAILED=1
               fi
             else
-              if ! ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" "$CHECK" $EXTRA_VARS 2>&1 | tee output.txt -a; then
+              if ! ansible-playbook "./playbooks/$inventory.yml" --inventory "./inventory/$inventory.cfg" "$CHECK" --extra-vars "@extra_vars.json" 2>&1 | tee output.txt -a; then
                 echo "ANSIBLE RUN FAILED FOR $inventory"
                 FAILED=1
               fi
