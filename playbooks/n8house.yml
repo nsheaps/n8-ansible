@@ -1,12 +1,16 @@
 ---
-- name: Echo a string on all n8house hosts
+- name: Common
   hosts: all
   roles:
     - ../roles/common
-- name: Echo a string on all n8house hosts
+- name: Notify a string on all n8house linux hosts
+  # TODO: limit to linux-desktop hosts, or update logic to support headless/terminal only hosts
   hosts: linux
   roles:
     - ../roles/say-hello
+  vars:
+    message: |
+      {{ git_repo }}@{{ git_commit_sha }}: {{ git_commit_subject }}
 - name: Apply always-on power settings
   hosts: n8server
   roles:

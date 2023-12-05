@@ -112,13 +112,15 @@ jobs:
             CHECK="--check"
             GIT_COMMIT_SUBJET="$(echo "$GIT_COMMIT_MESSAGE" | head -n 1)"
             GIT_SHORT_SHA="$(echo "${{ github.sha }}" | head -c 7)"
+            GIT_REPO="${{ github.repository }}"
             jq -n \
               --arg git_commit_subject "$GIT_COMMIT_SUBJET" \
               --arg git_short_sha "$GIT_SHORT_SHA" \
-              --arg is_default_branch "$IS_DEFAULT_BRANCH" \
+              --arg git_repo "$GIT_REPO" \
               '{
                 "git_commit_subject": $git_commit_subject,
                 "git_short_sha": $git_short_sha,
+                "git_repo": $git_repo,
                 "is_default_branch": $is_default_branch
               }' > extra_vars.json
               cat extra_vars.json
