@@ -133,7 +133,7 @@
   become_user: ansible
 - name: Copy known_hosts to root
   shell: |
-    sudo cat /home/ansible/.ssh/known_hosts >> /etc/ssh/ssh_known_hosts
+    cat /home/ansible/.ssh/known_hosts >> /etc/ssh/ssh_known_hosts
   become: true
 - name: set known_hosts permissions
   file:
