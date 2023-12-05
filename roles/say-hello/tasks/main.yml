@@ -7,6 +7,6 @@
   become: true
 - name: Popup Notification
   command: |
-    notify-send-all -t 10000 "Ansible" "{{ message }}"
+    notify-send-all -t 10000 "{{ title }}" "{{ message }}"
   register: result
 
