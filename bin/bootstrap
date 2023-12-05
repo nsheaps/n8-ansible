@@ -20,6 +20,10 @@ sudo echo "sudo access granted"
 
 # prefer apt for installing packages, but use brew if it's available
 if [ -x "$(command -v apt-get)" ]; then
+  # if curl is not installed, install it
+  if [ ! -x "$(command -v curl)" ]; then
+    sudo apt-get install --no-install-recommends -yqq curl
+  fi
   if [ -x "$(command -v gum)" ]; then
     gum spin --spinner minidot --title "Updating apt sources" --show-output -- sudo apt-get update
   else
