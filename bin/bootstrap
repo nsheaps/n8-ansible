@@ -22,7 +22,7 @@ sudo echo "sudo access granted"
 if [ -x "$(command -v apt-get)" ]; then
   # if curl is not installed, install it
   if [ ! -x "$(command -v curl)" ]; then
-    sudo apt-get install --no-install-recommends -yqq curl
+    sudo apt-get install --no-install-recommends -y curl
   fi
   if [ -x "$(command -v gum)" ]; then
     gum spin --spinner minidot --title "Updating apt sources" --show-output -- sudo apt-get update
@@ -34,21 +34,19 @@ if [ -x "$(command -v apt-get)" ]; then
     echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
     sudo apt-get update && sudo apt-get install -y gum
   fi
-  gum spin --spinner minidot --title "Installing build dependencies" --show-output -- sudo apt-get --no-install-recommends -yqq install \
+  gum spin --spinner minidot --title "Installing build dependencies" --show-output -- sudo apt-get --no-install-recommends -y install \
     bash-completion \
     build-essential \
     cmake \
     curl \
-    libcurl3  \
     libcurl3-openssl-dev  \
     libssl1.0 \
-    libssl1.0-dev \
     libxml2 \
     libxml2-dev  \
     pkg-config \
     ca-certificates \
     xclip
-  gum spin --spinner minidot --title "Installing general dependencies (apt-get)" --show-output -- sudo apt-get --no-install-recommends -yqq install \
+  gum spin --spinner minidot --title "Installing general dependencies (apt-get)" --show-output -- sudo apt-get --no-install-recommends -y install \
     git \
     gh \
     lastpass-cli \
