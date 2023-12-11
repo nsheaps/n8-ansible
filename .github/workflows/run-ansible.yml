@@ -91,8 +91,16 @@ jobs:
 
           find ./inventory -type f -name "*.cfg" -print | while read -r inventory; do
             echo "Pinging all group for inventory $inventory"
-            ansible -m ping --inventory $inventory all 2>&1 | tee output.txt
+            ansible -m ping --inventory $inventory all 2>&1 | tee -a ping.txt
           done
+
+          # if ping exists
+          if [[ -s ping.txt ]]; then
+            # handle multi-line with EOF
+            echo "ansible-ping<<EOF" >> $GITHUB_OUTPUT
+            cat ping.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
       - name: Run Ansible
         id: ansible
         if: (!cancelled())
@@ -166,7 +174,17 @@ jobs:
           message-id: ${{ env.COMMENT_ID }}
           message: |
             ## Ansible Dry Run Results
+            <details>
+            <summary>**${{ steps.ansible-ping.outcome == 'success' && ':white_check_mark: Ansible Ping Succeeded' || ':x: Ansible Ping Failed' }}** - _click to expand_</summary>
+            <pre>
+            ${{ steps.ansible-ping.outputs.ansible-ping }}
+            </pre>
+            </details>
+
+            <details>
+            <summary>**${{ steps.ansible.outcome == 'success' && ':white_check_mark: Ansible Dry Run Succeeded**' || ':x: Ansible Dry Run Failed' }}** - _click to expand_</summary>
 
             <pre>
             ${{ steps.ansible.outputs.ansible-dry-run }}
             </pre>
+            </details>
