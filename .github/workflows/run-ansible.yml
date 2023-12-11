@@ -175,14 +175,14 @@ jobs:
           message: |
             ## Ansible Dry Run Results
             <details>
-            <summary>**${{ steps.ansible-ping.outcome == 'success' && ':white_check_mark: Ansible Ping Succeeded' || ':x: Ansible Ping Failed' }}** - _click to expand_</summary>
+            <summary><b>${{ steps.ansible-ping.outcome == 'success' && ':white_check_mark: Ansible Ping Succeeded' || ':x: Ansible Ping Failed' }}</b> - <i>click to expand</i></summary>
             <pre>
             ${{ steps.ansible-ping.outputs.ansible-ping }}
             </pre>
             </details>
 
             <details>
-            <summary>**${{ steps.ansible.outcome == 'success' && ':white_check_mark: Ansible Dry Run Succeeded**' || ':x: Ansible Dry Run Failed' }}** - _click to expand_</summary>
+            <summary><b>${{ steps.ansible.outcome == 'success' && ':white_check_mark: Ansible Dry Run Succeeded' || ':x: Ansible Dry Run Failed' }}</b> - <i>click to expand</i></summary>
 
             <pre>
             ${{ steps.ansible.outputs.ansible-dry-run }}
