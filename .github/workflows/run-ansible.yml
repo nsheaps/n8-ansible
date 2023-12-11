@@ -151,7 +151,10 @@ jobs:
 
           # if output exists
           if [[ -s output.txt ]]; then
-            echo "ansible-dry-run="$(cat output.txt) >> $GITHUB_OUTPUT
+            # handle multi-line with EOF
+            echo "ansible-dry-run<<EOF" >> $GITHUB_OUTPUT
+            cat output.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
           fi
 
           exit $FAILED
