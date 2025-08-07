@@ -190,7 +190,10 @@ else
   export ROOT_DIR
 fi
 
-
+# Dump secret env vars that contain the name of the secrets for the central host
+# to SSH to the host when running in push mode
+# - Known hosts
+# - ansible user SSH private key
 lpass show "Home/ansible node bootstrap config" --note > "$HOME/.bootstraprc"
 . "$HOME/.bootstraprc"
 
