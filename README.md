@@ -25,6 +25,24 @@ sudo apt install ansible
 
 ### Installation
 
+#### Quick Bootstrap (Recommended)
+
+For new hosts, use the bootstrap script:
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/bootstrap)
+```
+
+This will:
+- Install required packages (ansible, 1Password CLI, git, etc.)
+- Set up SSH and authentication
+- Clone this repository
+- Generate host configuration
+- Optionally run the first ansible-pull
+
+See [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md) for detailed instructions.
+
+#### Manual Installation
+
 1. Clone the repository:
     ```
     git clone https://github.com/nsheaps/n8-ansible.git
@@ -33,9 +51,10 @@ sudo apt install ansible
     ```
     cd n8-ansible
     ```
-3. Do a dry run:
+3. Run the playbook:
     ```
-    ansible-playbook ./playbooks/playbook.yml --inventory ./inventory/inventory.cfg --check
+    ansible-playbook local.yml --check  # Dry run
+    ansible-playbook local.yml           # Apply
     ```
 
 ## Running Locally

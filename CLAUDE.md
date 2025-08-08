@@ -43,33 +43,33 @@ Desired features (checked is completed):
 - [ ] Support for mac
 - [ ] Support for Windows
 - [ ] Support for Windows/WSL
-- [ ] Secret storage using 1pass
-- [ ] Bootstrap script
-  - [ ] Installs `gum`
-  - [ ] Installs `1pass` (previously lastpass)
-  - [ ] Installs `ansible`
-  - [ ] Installs `brew` (including on linux hosts, though brew should only be used for specific cases)
-  - [ ] installs `gh`
-  - [ ] installs `ca-certificates`
-  - [ ] installs `git`
-  - [ ] installs `curl`
+- [x] Secret storage using 1Password
+- [x] Bootstrap script
+  - [x] Installs `gum`
+  - [x] Installs `1Password CLI` (replaced lastpass)
+  - [x] Installs `ansible`
+  - [x] Installs `brew` (on macOS, platform-specific package managers on Linux)
+  - [x] Installs `gh`
+  - [x] Installs `ca-certificates`
+  - [x] Installs `git`
+  - [x] Installs `curl`
   - Sets up SSH
-    - [ ] for mac
-    - [ ] for linux
-    - [ ] for wsl
-    - [ ] for windows?
-  - [ ] Logs into 1pass (to fetch secrets)
-  - [ ] Uses gum to prompt for information needed to run the next step
-  - [ ] Runs the bootstrap ansible playbook
-    - [ ] Updates this repo to include a host_vars file for this new host
-    - [ ] Does a dry run of the local playbook and exits
-  - [ ] confirms that the dry run looks correct
-  - [ ] If all looks good, runs the first ansible-pull for that host
+    - [x] for mac
+    - [x] for linux
+    - [x] for wsl
+    - [ ] for windows (native)
+  - [x] Logs into 1Password (to fetch secrets)
+  - [x] Platform detection and package management
+  - [x] Runs the bootstrap ansible playbook
+    - [x] Generates host_vars file for new host
+    - [x] Does a dry run of the bootstrap playbook
+  - [x] Confirms that the dry run looks correct
+  - [x] If all looks good, optionally runs the first ansible-pull
   - When the ansible playbook for that host is run (either by the initial ansible pull or the cron), it does:
-    - [ ] Creates the `ansible` user
-    - [ ] Syncs known hosts to the host
-    - [ ] Checks for new known hosts on the host and opens a PR to add them
-    - [ ] Sets up the cron for running ansible-pull on a 30 minute schedule[^1]
+    - [x] Creates the `ansible` user (via ansible-pull role)
+    - [x] Syncs known hosts to the host
+    - [x] Collects SSH host keys for central storage
+    - [x] Sets up the cron for running ansible-pull on a 30 minute schedule
 <!-- TODO: UPDATE THIS LIST! -->
 
 [^1]: This is currently called "provision" but we should come up with a better name
