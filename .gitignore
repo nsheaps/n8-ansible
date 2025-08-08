@@ -1,3 +1,15 @@
 output.txt
 *.retry
 roles/ssh-known-hosts/files/ssh-known-hosts
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Claude local repos (for reference/investigation only)
+.claude/.local/repos/
