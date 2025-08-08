@@ -8,9 +8,8 @@ user_configs:
   - system_user: nsheaps
     config_profile: nsheaps
 
-# Ansible pull configuration
-ansible_cron_minute: "*/30"
-
-# Healthchecks.io monitoring
-healthchecks_io_uuid: "{{ vault_healthchecks_io_uuid_n8laptop | default('') }}"
-healthchecks_io_enabled: true
+# Ansible-pull configuration
+ansible_pull_enabled: true
+ansible_pull_cron_minute: "*/30"
+ansible_pull_cron_hour: "*"
+ansible_pull_healthcheck_url: "{{ 'https://hc-ping.com/' + vault_healthchecks_io_uuid_n8laptop if vault_healthchecks_io_uuid_n8laptop is defined else '' }}"

@@ -84,6 +84,7 @@ Desired features (checked is completed):
 ### Role Organization
 - **base/**: Applied to all hosts - SSH, packages, system configuration
 - **users/**: User account management with profile-based configuration system
+- **ansible-pull/**: Automated provisioning setup with cron scheduling and monitoring
 - **workstation/**: Desktop environment configuration (GNOME/MATE), GUI apps, development tools
 - **server/**: Server-specific configuration - monitoring, unattended upgrades, firewall
 
@@ -173,11 +174,15 @@ See `tests/README.md` for detailed testing documentation.
 - **Nerd Fonts Support**: Downloads and installs Hack, FiraCode, and FiraMono Nerd Fonts to `~/.local/share/fonts/` and updates font cache
 - **Enhanced User Configuration**: All new features are conditional based on user_configs and excluded for root user for security
 - **Fixed ansible.log Warning**: Commented out log_path in ansible.cfg to prevent permission issues during local runs
+- **Ansible-Pull Role Extraction**: Moved ansible-pull setup from base role to dedicated ansible-pull role for better modularity
 
-### Automation
-- Cron job configured to run ansible-pull every 30 minutes (configurable via `ansible_cron_minute`)
-- Healthchecks.io integration for monitoring successful runs
-- Automatic cleanup of ansible cache on reboot
+### Ansible-Pull Automation
+- **Dedicated ansible-pull role**: Modular setup for automated provisioning
+- **Configurable scheduling**: Cron jobs run every 30 minutes by default (via `ansible_pull_cron_minute`)
+- **Healthchecks.io integration**: Optional monitoring for successful runs
+- **Automatic cleanup**: Ansible cache cleared on reboot
+- **Provision script**: `/usr/local/bin/ansible-provision` for manual runs
+- **Multi-distro support**: Works on Ubuntu, Debian, Arch, Fedora, RHEL
 
 
 ## Important Files
