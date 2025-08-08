@@ -1,203 +1,483 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 
-### QUICKSETUP
-# RUN THIS (don't use curl because it's not always installed):
-# u="https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/bootstrap"; t="$(mktemp)"; wget -O - "$u" > "$t" && chmod +x "$t" && "$t"; rm "$t" || echo "not found"
+### n8-ansible Bootstrap Script
+# Quick setup for new hosts to join the ansible-managed infrastructure
+# 
+# QUICKSETUP - Run this command:
+# bash <(curl -fsSL https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/bootstrap)
 
-# exit if something fails
-set -e
+set -euo pipefail
 
-# no unset vars
-set -u
+# Color output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# fail on pipes too
-set -o pipefail
+# Script configuration
+SCRIPT_VERSION="2.0.0"
+REPO_DEFAULT="https://github.com/nsheaps/n8-ansible.git"
+REPO_NAME="n8-ansible"
+DEFAULT_BRANCH="main"
 
-WORKING_DIR="$(pwd)"
-function exit_handler() {
-  exit_code="$?"
-  # cleanup before exiting
+# Platform detection
+OS_TYPE="unknown"
+DISTRO="unknown"
+IS_WSL=false
+IS_MAC=false
+IS_LINUX=false
 
-  cd "$WORKING_DIR"
-  exit "$exit_code"
+# Logging functions
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-trap exit_handler EXIT
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
 
-# print commands before running them
-# set -x
-# try to sudo to make sure we have sudo access
-sudo echo "sudo access granted"
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
 
-# prefer apt for installing packages, but use brew if it's available
-if [ -x "$(command -v apt-get)" ]; then
-  # if curl is not installed, install it
-  if [ ! -x "$(command -v curl)" ]; then
-    sudo apt-get install --no-install-recommends -y curl
-  fi
-  if [ -x "$(command -v gum)" ]; then
-    gum spin --spinner minidot --title "Updating apt sources" --show-output -- sudo apt-get update
-  else
-    # if gum is not installed, install it
-    # gum: https://github.com/charmbracelet/gum
-    sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
-    echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
-    sudo apt-get update && sudo apt-get install -y gum
-  fi
-  gum spin --spinner minidot --title "Installing build dependencies" --show-output -- sudo apt-get --no-install-recommends -y install \
-    bash-completion \
-    build-essential \
-    cmake \
-    curl \
-    libcurl3-openssl-dev  \
-    libssl1.0 \
-    libssl-dev \
-    libxml2 \
-    libxml2-dev  \
-    pkg-config \
-    ca-certificates \
-    xclip
-  gum spin --spinner minidot --title "Installing general dependencies (apt-get)" --show-output -- sudo apt-get --no-install-recommends -y install \
-    git \
-    gh \
-    lastpass-cli \
-    ca-certificates \
-    curl \
-    ansible \
-    gum
-  # if lpass exists and lpass --version != 'LastPass CLI v1.3.7', install from source because ubuntu repo
-  # only has 1.3.3 which has a bug with certificates. brew does not have this issue.
-  if [ -x "$(command -v lpass)" ] && [ "$(lpass --version)" = "LastPass CLI v1.3.7" ]; then
-    gum style --border-foreground "#FF0" --border thick --padding "0 0" "lastpass-cli version: $(lpass --version)"
-  else
-    pushd .
-    TEMP_DIR="$(mktemp -d)"
-    cd "$TEMP_DIR"
-    gum spin --spinner minidot --title "Downloading lastpass-cli" --show-output -- \
-      curl -L -o lastpass-cli-1.3.7.tar.gz https://github.com/lastpass/lastpass-cli/releases/download/v1.3.7/lastpass-cli-1.3.7.tar.gz \
-      && tar -xzvf lastpass-cli-1.3.7.tar.gz
-    cd lastpass-cli-1.3.7
-    gum spin --spinner minidot --title "Building lastpass-cli" --show-output -- make
-    gum spin --spinner minidot --title "Installing lastpass-cli" --show-output -- sudo make install
-    gum style --border-foreground "#0F0" --border thick --padding "0 0" "lastpass-cli version: $(lpass --version)"
-    popd
-    rm -rf "$TEMP_DIR"
-  fi
-elif [ -x "$(command -v brew)" ]; then
-  if [ ! -x "$(command -v gum)" ]; then
-    brew install gum
-  fi
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
 
-  gum spin --spinner minidot --title "Installing general dependencies (brew) " --show-output -- brew install \
-    git \
-    gh \
-    lastpass-cli \
-    curl \
-    ansible \
-    gum
+# Cleanup on exit
+WORKING_DIR="$(pwd)"
+function cleanup() {
+    exit_code="$?"
+    cd "$WORKING_DIR"
+    if [ $exit_code -eq 0 ]; then
+        log_success "Bootstrap completed successfully!"
+    else
+        log_error "Bootstrap failed with exit code $exit_code"
+    fi
+    exit "$exit_code"
+}
+trap cleanup EXIT
 
-else
-  echo "PANIC: unsupported system type, apt and brew are not installed"
-  exit 1
-fi
+# Platform detection
+detect_platform() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        OS_TYPE="macos"
+        IS_MAC=true
+        log_info "Detected macOS"
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        OS_TYPE="linux"
+        IS_LINUX=true
+        
+        # Check for WSL
+        if grep -qi microsoft /proc/version 2>/dev/null; then
+            IS_WSL=true
+            log_info "Detected WSL environment"
+        fi
+        
+        # Detect distribution
+        if [ -f /etc/os-release ]; then
+            . /etc/os-release
+            DISTRO="$ID"
+            log_info "Detected Linux distribution: $DISTRO"
+        fi
+    else
+        log_error "Unsupported platform: $OSTYPE"
+        exit 1
+    fi
+}
 
-# install openssh-server
-if [ -x "$(command -v apt-get)" ]; then
-  gum spin --spinner minidot --title "Installing openssh-server using apt" --show-output -- sudo apt-get install -y openssh-server
-# else if this is a mac system (aka darwin)
-elif [ "$(uname -s)" == "Darwin" ]; then
-  # gum spin --spinner minidot --title "Enabling SSH " --show-output -- brew install openssh-server
-  echo "PANIC: unsupported system type, need to add ssh install instructions for macos"
-  # note for future: https://superuser.com/questions/104929/how-do-you-run-a-ssh-server-on-mac-os-x
-else
-  echo "PANIC: unsupported system type, need to add ssh install instructions for other OSs"
-fi
+# Check for required commands
+check_command() {
+    if ! command -v "$1" &> /dev/null; then
+        return 1
+    fi
+    return 0
+}
 
-# LPASS_ACCOUNT_EMAIL but defaults to first arg
-LPASS_ACCOUNT_EMAIL="${1:-}"
-# if LPASS_ACCOUNT_EMAIL is unset
-if [ -z "$LPASS_ACCOUNT_EMAIL" ]; then
-  # if the user has a lastpass account, ask for their email
-  if ! lpass status > /dev/null; then
-    # ask for their email
-    gum style --border-foreground "#FF0" --border thick --padding "0 0" "Enter your lastpass account email to login to lpass"
-    LPASS_ACCOUNT_EMAIL="$(gum input --placeholder "example@example.com")"
-  fi
-fi
+# Install packages based on platform
+install_packages() {
+    log_info "Installing required packages..."
+    
+    if [ "$IS_MAC" = true ]; then
+        install_packages_mac
+    elif [ "$IS_LINUX" = true ]; then
+        case "$DISTRO" in
+            ubuntu|debian)
+                install_packages_debian
+                ;;
+            fedora|rhel|centos)
+                install_packages_fedora
+                ;;
+            arch)
+                install_packages_arch
+                ;;
+            *)
+                log_error "Unsupported Linux distribution: $DISTRO"
+                exit 1
+                ;;
+        esac
+    fi
+}
 
-# login to lastpass
-if ! lpass status > /dev/null; then
-  gum style --border-foreground "#FF0" --border thick --padding "0 0" "Logging in to lastpass (user: $LPASS_ACCOUNT_EMAIL)"
-  lpass login --trust "$LPASS_ACCOUNT_EMAIL"
-fi
+install_packages_mac() {
+    # Install Homebrew if not present
+    if ! check_command brew; then
+        log_info "Installing Homebrew..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        
+        # Add Homebrew to PATH for Apple Silicon Macs
+        if [[ -f "/opt/homebrew/bin/brew" ]]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        fi
+    fi
+    
+    log_info "Installing packages with Homebrew..."
+    brew install \
+        git \
+        gh \
+        curl \
+        ansible \
+        1password-cli \
+        gum \
+        openssh
+}
 
-# login to gh
-# gh auth login --with-token <<< "$(lpass show --notes "github.com/$GH_AUTH_USER")"
-gh auth login # login interactively
+install_packages_debian() {
+    log_info "Updating apt sources..."
+    sudo apt-get update
+    
+    # Install gum if not present
+    if ! check_command gum; then
+        log_info "Installing gum..."
+        sudo mkdir -p /etc/apt/keyrings
+        curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+        echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
+        sudo apt-get update
+    fi
+    
+    log_info "Installing packages with apt..."
+    sudo apt-get install -y \
+        git \
+        gh \
+        curl \
+        ansible \
+        gum \
+        openssh-server \
+        ca-certificates
+    
+    # Install 1Password CLI
+    if ! check_command op; then
+        log_info "Installing 1Password CLI..."
+        curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
+            sudo gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" | \
+            sudo tee /etc/apt/sources.list.d/1password.list
+        sudo apt-get update && sudo apt-get install -y 1password-cli
+    fi
+}
 
-REPO="${2:-}"
-# if REPO is unset
-if [ -z "$REPO" ]; then
-  gum style --border-foreground "#FF0" --border thick --padding "0 0" "Enter upstream config repo (https url please)"
-  REPO="$(gum input --value "https://github.com/nsheaps/n8-ansible.git" --width 0)"
-fi
-OWNER_AND_NAME="$(echo "$REPO" | cut -d '/' -f4-5 | cut -d '.' -f1)"
-REPO_NAME="$(echo "$OWNER_AND_NAME" | cut -d '/' -f1)"
+install_packages_fedora() {
+    log_info "Installing packages with dnf..."
+    sudo dnf install -y \
+        git \
+        gh \
+        curl \
+        ansible \
+        openssh-server \
+        ca-certificates
+    
+    # Install 1Password CLI
+    if ! check_command op; then
+        log_info "Installing 1Password CLI..."
+        sudo rpm --import https://downloads.1password.com/linux/keys/1password.asc
+        sudo sh -c 'echo -e "[1password]\nname=1Password Stable Channel\nbaseurl=https://downloads.1password.com/linux/rpm/stable/\$basearch\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=\"https://downloads.1password.com/linux/keys/1password.asc\"" > /etc/yum.repos.d/1password.repo'
+        sudo dnf install -y 1password-cli
+    fi
+    
+    # Install gum
+    if ! check_command gum; then
+        log_info "Installing gum..."
+        echo '[charm]
+name=Charm
+baseurl=https://repo.charm.sh/yum/
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
+        sudo dnf install -y gum
+    fi
+}
 
+install_packages_arch() {
+    log_info "Installing packages with pacman..."
+    sudo pacman -Syu --noconfirm \
+        git \
+        github-cli \
+        curl \
+        ansible \
+        openssh \
+        ca-certificates
+    
+    # Install from AUR
+    if ! check_command yay; then
+        log_info "Installing yay for AUR access..."
+        git clone https://aur.archlinux.org/yay.git /tmp/yay
+        cd /tmp/yay
+        makepkg -si --noconfirm
+        cd -
+        rm -rf /tmp/yay
+    fi
+    
+    log_info "Installing AUR packages..."
+    yay -S --noconfirm 1password-cli gum
+}
 
-# if it's already checked out at $HOME/src/n8-ansible, just go there and pull
-if [ -d "$HOME/src/n8-ansible" ]; then
-  cd "$HOME/src/n8-ansible"
-  # confirm that the git remote origin is set to $REPO
-  if [ "$(git config --get remote.origin.url)" != "$REPO" ]; then
-    echo "PANIC: $HOME/src/n8-ansible exists but git remote origin is not set to $REPO"
-    exit 1
-  fi
-  git pull
-  ROOT_DIR="$(pwd)"
-  export ROOT_DIR
-# if the upstream of this repo is $REPO, cd to the root of the repo, otherwise, check it out
-elif [ "$(git config --get remote.origin.url)" == "$REPO" ]; then
-  cd "$(git rev-parse --show-toplevel)"
-  ROOT_DIR="$(pwd)"
-  export ROOT_DIR
-elif gum confirm "Checkout $REPO_NAME to random temp dir?"; then
-  # make a tempdir to do all of our work
-  TEMP_DIR="$(mktemp -d)"
-  cd "$TEMP_DIR"
+# Setup SSH based on platform
+setup_ssh() {
+    log_info "Setting up SSH..."
+    
+    if [ "$IS_MAC" = true ]; then
+        # Enable SSH on macOS
+        log_info "Enabling SSH on macOS..."
+        sudo systemsetup -setremotelogin on 2>/dev/null || \
+            sudo launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null || \
+            log_warning "Could not enable SSH automatically. Please enable it in System Preferences > Sharing > Remote Login"
+    elif [ "$IS_LINUX" = true ]; then
+        # Ensure SSH service is running
+        if systemctl is-enabled ssh &>/dev/null || systemctl is-enabled sshd &>/dev/null; then
+            sudo systemctl enable --now ssh 2>/dev/null || sudo systemctl enable --now sshd 2>/dev/null
+            log_success "SSH service enabled and started"
+        fi
+    fi
+    
+    # Create SSH directory if it doesn't exist
+    mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
+}
 
-  # clone the repo
-  git clone "$REPO" "$REPO_NAME"
-  cd "$REPO_NAME"
-  ROOT_DIR="$(pwd)"
-  export ROOT_DIR
-# ask if the user would like to check out the repo to ~/src/n8-ansible, $(mktemp -d), other, or exit
-else
-  gum style --border-foreground "#FF0" --border thick --padding "0 4" "Enter a directory to check out $REPO_NAME to, or ctrl-c to exit"
-  INPUT="$(gum input --value "$HOME/src/$REPO_NAME")"
-  # remove any trailing slashes from the input
-  INPUT="$(echo "$INPUT" | sed 's/\/$//g')"
-  # get last folder name from input
-  REPO_NAME="$(basename "$INPUT")"
-  LIVES_IN="$(dirname "$INPUT")"
+# Login to 1Password
+setup_1password() {
+    log_info "Setting up 1Password CLI..."
+    
+    # Check if already signed in
+    if op account list &>/dev/null; then
+        log_success "Already signed in to 1Password"
+        return 0
+    fi
+    
+    # Sign in to 1Password
+    log_info "Please sign in to 1Password"
+    if ! eval $(op signin); then
+        log_error "Failed to sign in to 1Password"
+        exit 1
+    fi
+    
+    log_success "Successfully signed in to 1Password"
+}
 
-  mkdir -p "$LIVES_IN"
-  cd "$LIVES_IN"
-  git clone "$REPO" "$REPO_NAME"
-  cd "$REPO_NAME"
-  ROOT_DIR="$(pwd)"
-  export ROOT_DIR
-fi
+# Login to GitHub CLI
+setup_github() {
+    log_info "Setting up GitHub CLI..."
+    
+    # Check if already authenticated
+    if gh auth status &>/dev/null; then
+        log_success "Already authenticated with GitHub"
+        return 0
+    fi
+    
+    # Authenticate with GitHub
+    log_info "Please authenticate with GitHub"
+    gh auth login
+    
+    log_success "Successfully authenticated with GitHub"
+}
 
-# Dump secret env vars that contain the name of the secrets for the central host
-# to SSH to the host when running in push mode
-# - Known hosts
-# - ansible user SSH private key
-lpass show "Home/ansible node bootstrap config" --note > "$HOME/.bootstraprc"
-. "$HOME/.bootstraprc"
+# Clone or update the repository
+setup_repository() {
+    local repo="${1:-$REPO_DEFAULT}"
+    local target_dir="$HOME/src/$REPO_NAME"
+    
+    log_info "Setting up repository: $repo"
+    
+    # Check if already cloned
+    if [ -d "$target_dir" ]; then
+        cd "$target_dir"
+        if [ "$(git config --get remote.origin.url)" = "$repo" ]; then
+            log_info "Repository exists, pulling latest changes..."
+            git pull
+            ROOT_DIR="$(pwd)"
+            export ROOT_DIR
+            return 0
+        else
+            log_error "Directory exists but has different remote: $(git config --get remote.origin.url)"
+            exit 1
+        fi
+    fi
+    
+    # Clone the repository
+    log_info "Cloning repository to $target_dir..."
+    mkdir -p "$(dirname "$target_dir")"
+    git clone "$repo" "$target_dir"
+    cd "$target_dir"
+    ROOT_DIR="$(pwd)"
+    export ROOT_DIR
+    log_success "Repository cloned successfully"
+}
 
-# run ansible
-ansible-playbook ./playbooks/bootstrap.yml --ask-become-pass --extra-vars "{\"running_as\":\"$USER\", \"root_dir\":\"$ROOT_DIR\"}"
+# Generate host_vars file for this host
+generate_host_vars() {
+    local hostname="$(hostname -s)"
+    local host_vars_file="$ROOT_DIR/host_vars/${hostname}.yml"
+    
+    if [ -f "$host_vars_file" ]; then
+        log_info "Host vars file already exists: $host_vars_file"
+        return 0
+    fi
+    
+    log_info "Generating host_vars file for $hostname..."
+    
+    # Determine if workstation or server
+    local host_type="server"
+    if [ "$IS_MAC" = true ] || [ -n "$DISPLAY" ] || [ "$IS_WSL" = true ]; then
+        host_type="workstation"
+    fi
+    
+    # Create host_vars file
+    cat > "$host_vars_file" << EOF
+---
+# Configuration for $hostname
+# Generated by bootstrap script on $(date)
 
-gum style --border-foreground "#0F0" --border thick --padding "2 4"  "Bootstrap complete!"
+# Ansible-pull configuration
+ansible_pull_enabled: true
+ansible_pull_cron_minute: "*/30"
+ansible_pull_cron_hour: "*"
+
+# User configuration
+user_configs:
+  - system_user: root
+    config_profile: root
+  - system_user: $(whoami)
+    config_profile: nsheaps  # TODO: Update this to match your profile
+
+# Host type: $host_type
+EOF
+    
+    log_success "Generated host_vars file: $host_vars_file"
+    
+    # Update inventory
+    local inventory_file="$ROOT_DIR/hosts"
+    if ! grep -q "^$hostname" "$inventory_file"; then
+        log_info "Adding $hostname to inventory..."
+        echo "" >> "$inventory_file"
+        echo "[$host_type]" >> "$inventory_file"
+        echo "$hostname" >> "$inventory_file"
+    fi
+}
+
+# Run bootstrap playbook
+run_bootstrap() {
+    log_info "Running bootstrap playbook..."
+    
+    cd "$ROOT_DIR"
+    
+    # First, do a dry run
+    log_info "Performing dry run..."
+    if ! ansible-playbook playbooks/bootstrap.yml \
+        --connection=local \
+        --check \
+        --diff \
+        --extra-vars "running_as=$(whoami) root_dir=$ROOT_DIR"; then
+        log_error "Dry run failed"
+        exit 1
+    fi
+    
+    # Ask for confirmation
+    echo -e "${YELLOW}The dry run completed. Would you like to proceed with the actual bootstrap?${NC}"
+    read -p "Continue? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_warning "Bootstrap cancelled by user"
+        exit 0
+    fi
+    
+    # Run the actual bootstrap
+    log_info "Running bootstrap (this will require sudo)..."
+    ansible-playbook playbooks/bootstrap.yml \
+        --connection=local \
+        --ask-become-pass \
+        --extra-vars "running_as=$(whoami) root_dir=$ROOT_DIR"
+    
+    log_success "Bootstrap playbook completed"
+}
+
+# Run first ansible-pull
+run_first_pull() {
+    log_info "Running first ansible-pull..."
+    
+    # Ask for confirmation
+    echo -e "${YELLOW}Would you like to run the first ansible-pull now?${NC}"
+    read -p "This will configure your system according to the playbooks. Continue? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_info "You can run ansible-pull manually later with:"
+        echo "  sudo ansible-pull -U $REPO_DEFAULT -C $DEFAULT_BRANCH"
+        return 0
+    fi
+    
+    # Run ansible-pull
+    log_info "Running ansible-pull (this will require sudo)..."
+    sudo ansible-pull \
+        -U "$REPO_DEFAULT" \
+        -C "$DEFAULT_BRANCH" \
+        --ask-become-pass
+    
+    log_success "First ansible-pull completed"
+}
+
+# Main execution
+main() {
+    echo -e "${BLUE}n8-ansible Bootstrap Script v${SCRIPT_VERSION}${NC}"
+    echo "========================================="
+    
+    # Check for sudo access
+    log_info "Checking sudo access..."
+    if ! sudo -n true 2>/dev/null; then
+        log_info "Please enter your password for sudo access:"
+        sudo true
+    fi
+    log_success "Sudo access confirmed"
+    
+    # Detect platform
+    detect_platform
+    
+    # Install required packages
+    install_packages
+    
+    # Setup SSH
+    setup_ssh
+    
+    # Setup 1Password
+    setup_1password
+    
+    # Setup GitHub
+    setup_github
+    
+    # Setup repository
+    setup_repository "${1:-}"
+    
+    # Generate host_vars
+    generate_host_vars
+    
+    # Run bootstrap
+    run_bootstrap
+    
+    # Run first ansible-pull
+    run_first_pull
+    
+    log_success "Bootstrap process completed!"
+    log_info "Your system will now automatically pull updates every 30 minutes"
+}
+
+# Run main function
+main "$@"
