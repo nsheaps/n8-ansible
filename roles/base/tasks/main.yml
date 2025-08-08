@@ -4,11 +4,14 @@
 
 - block:
 
-  # Set up the ansible environment
+  # Ansible-pull setup is now handled by the ansible-pull role
+  # Keeping minimal ansible setup for base requirements
   - import_tasks: ansible_setup.yml
-  - import_tasks: system_setup/cron.yml
 
   # User configuration is now handled by the users role
+
+  # Basic system setup
+  - import_tasks: system_setup/cron.yml
 
   # install software
   - import_tasks: software/repositories.yml

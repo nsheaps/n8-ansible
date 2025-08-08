@@ -39,6 +39,12 @@
   roles:
     - base
 
+- hosts: all
+  tags: ansible-pull
+  become: true
+  roles:
+    - ansible-pull
+
 - hosts: workstation
   tags: workstation
   become: true
