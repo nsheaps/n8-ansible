@@ -48,6 +48,52 @@ To perform a "dry run" (i.e., simulate the playbook run without making any chang
 
 `ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house --check`
 
+## Testing
+
+The project includes a comprehensive test suite to validate the Ansible configuration.
+
+### Quick Test
+
+Use the ansible-test command to run all tests (available in PATH when using direnv):
+
+```bash
+# Run all tests
+ansible-test
+
+# Run a specific test
+ansible-test inheritance
+ansible-test users
+ansible-test syntax
+
+# Run with verbose output
+ansible-test -v
+
+# List available tests
+ansible-test --list
+
+# Get help
+ansible-test --help
+```
+
+Note: If not using direnv, use `./bin/ansible-test` instead.
+
+### Manual Testing
+
+You can also run test playbooks directly:
+
+```bash
+# Test user inheritance
+ansible-playbook tests/playbooks/test_user_inheritance.yml
+
+# Test user configuration
+ansible-playbook tests/playbooks/test_user_configuration.yml
+
+# Test syntax
+ansible-playbook tests/playbooks/test_syntax.yml
+```
+
+See `tests/README.md` for detailed testing documentation.
+
 ## Configuring New Hosts
 TBD UPDATE
 > [!IMPORTANT]
