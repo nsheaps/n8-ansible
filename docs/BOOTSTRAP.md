@@ -58,7 +58,7 @@ Based on your platform, the script installs:
 ### 3. Service Configuration
 
 The script configures:
-- **SSH**: Enables and starts SSH service
+- **SSH** (Optional): Only if you need remote access - asks before setup
 - **1Password**: Authenticates with your 1Password account
 - **GitHub**: Authenticates with GitHub for repository access
 
