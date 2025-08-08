@@ -22,11 +22,29 @@ default_user_groups:
 
 # Configuration profile defaults
 # These define the default values for each configuration profile
+# 
+# Inheritance Support:
+# Profiles can inherit from other profiles using the 'inherits_from' field.
+# Child profiles merge with parent profiles, with child values taking precedence.
+# Lists are extended (parent + child), dictionaries are merged recursively.
+#
+# Example inheritance:
+# config_profiles:
+#   base_user:
+#     shell: /bin/bash
+#     groups: [users]
+#     configs: [bash, git]
+#   
+#   developer:
+#     inherits_from: base_user
+#     groups: [docker, sudo]  # Final: [users, docker, sudo]  
+#     configs: [ssh, tmux]    # Final: [bash, git, ssh, tmux]
+#
 config_profiles:
   nsheaps:
     full_name: "Nathan Heaps"
     email: nsheaps@gmail.com
-    shell: /bin/bash
+    shell: /bin/zsh
     groups:
       - sudo
       - docker
@@ -39,9 +57,27 @@ config_profiles:
       - bash
       - git
       - htop
+      - inputrc
       - mc
       - ssh
       - tmux
+      - vim
+      - zsh
+  
+  nheaps:
+    inherits_from: nsheaps
+    full_name: "Nathan Heaps"
+    email: nheaps@gather.town
+  
+  root:
+    full_name: "root"
+    email: root@localhost
+    shell: /bin/bash
+    groups: []
+    configs:
+      - bash
+      - tmux
+      - vim
       - zsh
   
   example_user:

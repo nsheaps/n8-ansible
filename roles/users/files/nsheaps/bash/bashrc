@@ -35,12 +35,6 @@ case :$PATH: in
 	*) PATH=/home/$USER/bin:$PATH ;;
 esac
 
-# Add /usr/games to $PATH
-case :$PATH: in
-	*:/usr/games:*) ;;
-	*) PATH=/usr/games:$PATH ;;
-esac
-
 # Add /home/$USER/.local/bin to $PATH
 case :$PATH: in
 	*:/home/$USER/.local/bin:*) ;;
@@ -48,7 +42,7 @@ case :$PATH: in
 esac
 
 # Enable tab completion for tmux
-source /home/nsheaps/.tmux/plugins/completion/tmux
+source $HOME/.tmux/plugins/completion/tmux
 
 # Add /home/$USER/.tmux/tmuxifier to $PATH
 case :$PATH: in
@@ -72,8 +66,3 @@ alias chgrp='chgrp --preserve-root'
 
 # reload bash config
 alias reload="source ~/.bashrc"
-
-# activate Starship if installed
-if [ -x "/usr/local/bin/starship" ]; then
-    eval "$(starship init bash)"
-fi

@@ -28,6 +28,12 @@
       
 # run roles
 - hosts: all
+  tags: users
+  become: true
+  roles:
+    - users
+
+- hosts: all
   tags: base
   become: true
   roles:

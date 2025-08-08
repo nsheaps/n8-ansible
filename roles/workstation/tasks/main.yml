@@ -7,8 +7,7 @@
   tags: always
 
 - block:
-  ## User configs
-  - import_tasks: users/example_user.yml
+  ## User configs are now handled by the users role
 
 # ## desktop environments
 

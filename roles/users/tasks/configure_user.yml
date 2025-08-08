@@ -1,4 +1,18 @@
 ---
+# Handle root user specially - just lock password and set shell
+- name: users | {{ username }} | configure root user
+  user:
+    name: "{{ username }}"
+    shell: "{{ user_shell }}"
+    password: "!"
+    password_lock: yes
+    state: present
+  when: username == "root"
+  tags:
+    - users
+    - "{{ username }}"
+
+# Handle regular users - create user and group
 - name: users | {{ username }} | create user
   user:
     name: "{{ username }}"
@@ -10,6 +24,7 @@
     comment: "{{ user_full_name }}"
     update_password: on_create
     state: present
+  when: username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -21,6 +36,7 @@
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: 0755
+  when: username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -35,6 +51,7 @@
   loop:
     - .ssh
     - .config
+  when: username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -54,7 +71,9 @@
     - bash_prompt
     - bashrc
     - profile
-  when: "'bash' in user_configs"
+  when: 
+    - "'bash' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -71,7 +90,9 @@
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: 0644
-  when: "'git' in user_configs"
+  when: 
+    - "'git' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -85,7 +106,9 @@
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: 0755
-  when: "'htop' in user_configs"
+  when: 
+    - "'htop' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -98,7 +121,9 @@
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: 0644
-  when: "'htop' in user_configs"
+  when: 
+    - "'htop' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -112,7 +137,9 @@
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: 0755
-  when: "'mc' in user_configs"
+  when: 
+    - "'mc' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -125,7 +152,9 @@
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: 0644
-  when: "'mc' in user_configs"
+  when: 
+    - "'mc' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -137,7 +166,9 @@
     user: "{{ username }}"
     state: present
     key: "{{ lookup('file', profile + '/ssh/' + profile + '_id_ed25519.pub') }}"
-  when: "'ssh' in user_configs"
+  when: 
+    - "'ssh' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -154,7 +185,9 @@
   loop:
     - tmux.conf.server
     - tmux.conf.workstation
-  when: "'tmux' in user_configs"
+  when: 
+    - "'tmux' in user_configs"
+    - username != "root"
   register: tmux_copy
   tags:
     - users
@@ -172,6 +205,7 @@
   when: 
     - "'tmux' in user_configs"
     - username != profile
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -184,7 +218,9 @@
     state: link
     owner: "{{ username }}"
     group: "{{ username }}"
-  when: "'tmux' in user_configs"
+  when: 
+    - "'tmux' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -198,7 +234,9 @@
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: 0644
-  when: "'zsh' in user_configs"
+  when: 
+    - "'zsh' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -211,7 +249,9 @@
     owner: "{{ username }}"
     group: "{{ username }}"
     mode: 0755
-  when: "'zsh' in user_configs"
+  when: 
+    - "'zsh' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -236,7 +276,9 @@
     - prompt.zsh
     - setopt.zsh
     - theming.zsh
-  when: "'zsh' in user_configs"
+  when: 
+    - "'zsh' in user_configs"
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -250,10 +292,177 @@
   when: 
     - "'zsh' in user_configs"
     - username != profile
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
     - zsh
+
+# Vim configuration
+- name: users | {{ username }} | create vim directories
+  file:
+    path: "/home/{{ username }}/{{ item }}"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0700
+  loop:
+    - .vim
+    - .vim/autoload
+    - .vim/bundle
+    - .vim/colors
+    - .vim/ftplugin
+  when: 
+    - "'vim' in user_configs"
+    - username != "root"
+  tags:
+    - users
+    - "{{ username }}"
+    - vim
+
+- name: users | {{ username }} | copy vim config
+  copy:
+    src: "{{ profile }}/vim/vimrc"
+    dest: "/home/{{ username }}/.vimrc"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0644
+  when: 
+    - "'vim' in user_configs"
+    - username != "root"
+  tags:
+    - users
+    - "{{ username }}"
+    - vim
+
+- name: users | {{ username }} | copy vim color schemes
+  copy:
+    src: "{{ profile }}/vim/{{ item }}"
+    dest: "/home/{{ username }}/.vim/colors/{{ item }}"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0644
+  loop:
+    - bubblegum-256-dark.vim
+    - darktango.vim
+    - jellybeans.vim
+    - xoria256.vim
+    - zenburn.vim
+  when: 
+    - "'vim' in user_configs"
+    - username != "root"
+  tags:
+    - users
+    - "{{ username }}"
+    - vim
+
+- name: users | {{ username }} | copy vim ftplugin files
+  copy:
+    src: "{{ profile }}/vim/{{ item }}"
+    dest: "/home/{{ username }}/.vim/ftplugin/{{ item }}"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0644
+  loop:
+    - cmake.vim
+    - cpp.vim
+    - html.vim
+    - perl.vim
+    - python.vim
+    - ruby.vim
+    - sql.vim
+    - xml.vim
+  when: 
+    - "'vim' in user_configs"
+    - username != "root"
+  tags:
+    - users
+    - "{{ username }}"
+    - vim
+
+- name: users | {{ username }} | install pathogen
+  copy:
+    src: "{{ profile }}/vim/pathogen.vim"
+    dest: "/home/{{ username }}/.vim/autoload/pathogen.vim"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0700
+  when: 
+    - "'vim' in user_configs"
+    - username != "root"
+  tags:
+    - users
+    - "{{ username }}"
+    - vim
+
+- name: users | {{ username }} | clone vim plugins
+  git:
+    repo: "{{ item }}"
+    dest: "/home/{{ username }}/.vim/bundle/{{ item | regex_replace('.*?([^/]+)\\.git$', '\\1') | regex_replace('\\.vim$', '') }}"
+    force: yes
+  loop:
+    - https://github.com/ctrlpvim/ctrlp.vim.git
+    - https://github.com/davidhalter/jedi-vim.git
+    - https://github.com/pearofducks/ansible-vim
+    - https://github.com/rhysd/vim-grammarous.git
+    - https://github.com/ron89/thesaurus_query.vim
+    - https://github.com/scrooloose/nerdtree.git
+    - https://github.com/tpope/vim-obsession.git
+    - https://github.com/vim-syntastic/syntastic.git
+  become_user: "{{ username }}"
+  when: 
+    - "'vim' in user_configs"
+    - username != "root"
+  tags:
+    - users
+    - "{{ username }}"
+    - vim
+
+# Tmux plugin management
+- name: users | {{ username }} | create tmux directories
+  file:
+    path: "/home/{{ username }}/{{ item }}"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0700
+  loop:
+    - .tmux
+    - .tmux/plugins
+  when: 
+    - "'tmux' in user_configs"
+    - username != "root"
+  tags:
+    - users
+    - "{{ username }}"
+    - tmux
+
+- name: users | {{ username }} | clone tmux plugins
+  git:
+    repo: "{{ item.repo }}"
+    dest: "/home/{{ username }}/.tmux/plugins/{{ item.name }}"
+    force: yes
+  loop:
+    - { repo: "https://github.com/srsudar/tmux-completion.git", name: "completion" }
+    - { repo: "https://github.com/tmux-plugins/tmux-continuum", name: "continuum" }
+    - { repo: "https://github.com/tmux-plugins/tmux-resurrect", name: "resurrect" }
+  become_user: "{{ username }}"
+  when: 
+    - "'tmux' in user_configs"
+    - username != "root"
+  tags:
+    - users
+    - "{{ username }}"
+    - tmux
+
+# Include fonts installation for non-root users
+- name: users | {{ username }} | include font installation
+  include_tasks: fonts.yml
+  when: username != "root"
+  tags:
+    - users
+    - "{{ username }}"
+    - fonts
 
 # Update bashrc paths if username differs from profile
 - name: users | {{ username }} | update bash paths
@@ -264,6 +473,7 @@
   when: 
     - "'bash' in user_configs"
     - username != profile
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
@@ -277,6 +487,7 @@
   when: 
     - "'bash' in user_configs"
     - username != profile
+    - username != "root"
   tags:
     - users
     - "{{ username }}"
