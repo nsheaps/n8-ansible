@@ -14,7 +14,7 @@ This is an Ansible project for automated configuration of home network hosts (bo
 
 ## Core Architecture
 
-This project merges in https://github.com/fabricesemti80/home.ansible.linux-config-with-ansible-pull to n8-ansible. Some references may still reference the upstream home.ansible.linux-config-with-ansible-pull original configuration.
+This project merges in https://github.com/fabricesemti80/home.ansible.linux-config-with-ansible-pull to n8-ansible. Some files may have been deleted from the upstream by accident. Some references may still reference the upstream home.ansible.linux-config-with-ansible-pull original configuration. Always double check the history in this repo, that repo, and that repo on the fabrice branch specifically. You can check out this to .claude/.local/repos/xxxx. Make sure it's git ignored if not already. 
 
 Originally, this project used github actions to connect to openvpn and then run ansible against hosts when changes are made.
 
