@@ -9,7 +9,7 @@
 set -euo pipefail
 
 # Script configuration
-SCRIPT_VERSION="2.1.0"
+SCRIPT_VERSION="2.2.0"
 REPO_DEFAULT="https://github.com/nsheaps/n8-ansible.git"
 REPO_NAME="n8-ansible"
 DEFAULT_BRANCH="main"
@@ -21,7 +21,138 @@ IS_WSL=false
 IS_MAC=false
 IS_LINUX=false
 
-# Early platform detection for gum installation
+# Color/style definitions for gum
+STYLE_SUCCESS="--foreground=212"  # Pink/magenta for success
+STYLE_ERROR="--foreground=196"    # Red for errors
+STYLE_WARNING="--foreground=214"  # Orange for warnings
+STYLE_INFO="--foreground=245"     # Gray for info
+STYLE_HEADER="--foreground=212 --bold"  # Pink bold for headers
+
+# =============================================================================
+# GUM ABSTRACTION FUNCTIONS
+# =============================================================================
+
+# Check if gum is available
+has_gum() {
+    command -v gum &> /dev/null
+}
+
+# Log with style - fallback to echo if gum not available
+log() {
+    local style="$1"
+    shift
+    if has_gum; then
+        gum style $style "$@"
+    else
+        echo "$@"
+    fi
+}
+
+log_success() { log "$STYLE_SUCCESS" "$@"; }
+log_error() { log "$STYLE_ERROR" "$@"; }
+log_warning() { log "$STYLE_WARNING" "$@"; }
+log_info() { log "$STYLE_INFO" "$@"; }
+log_header() { log "$STYLE_HEADER" "$@"; }
+
+# Run command with spinner - fallback to plain execution if gum not available
+run_with_spinner() {
+    local title="$1"
+    shift
+    if has_gum; then
+        gum spin --spinner dot --title "$title" -- "$@"
+    else
+        echo "$title"
+        "$@"
+    fi
+}
+
+# Confirm with user - fallback to read if gum not available
+confirm() {
+    local prompt="$1"
+    local affirmative="${2:-Yes}"
+    local negative="${3:-No}"
+    
+    if has_gum; then
+        gum confirm "$prompt" --affirmative "$affirmative" --negative "$negative"
+    else
+        echo -n "$prompt [y/N]: "
+        read -r response
+        [[ "$response" =~ ^[Yy] ]]
+    fi
+}
+
+# Get input from user - fallback to read if gum not available
+get_input() {
+    local prompt="$1"
+    local default="$2"
+    local placeholder="${3:-$default}"
+    
+    if has_gum; then
+        gum input --prompt "$prompt" --value "$default" --placeholder "$placeholder"
+    else
+        echo -n "$prompt [$default]: "
+        read -r response
+        echo "${response:-$default}"
+    fi
+}
+
+# Choose from options - fallback to numbered menu if gum not available
+choose() {
+    local header="$1"
+    shift
+    local options=("$@")
+    
+    if has_gum; then
+        gum choose --header "$header" "${options[@]}"
+    else
+        echo "$header"
+        local i=1
+        for opt in "${options[@]}"; do
+            echo "$i) $opt"
+            ((i++))
+        done
+        echo -n "Choice [1]: "
+        read -r choice
+        choice="${choice:-1}"
+        echo "${options[$((choice-1))]}"
+    fi
+}
+
+# Show styled banner
+show_banner() {
+    if has_gum; then
+        gum style \
+            --foreground 212 \
+            --border-foreground 212 \
+            --border double \
+            --align center \
+            --width 50 \
+            --margin "1 2" \
+            --padding "2 4" \
+            "$@"
+    else
+        echo "========================================="
+        for line in "$@"; do
+            echo "    $line"
+        done
+        echo "========================================="
+    fi
+}
+
+# Show pager for file content
+show_file() {
+    local file="$1"
+    if has_gum; then
+        gum pager < "$file"
+    else
+        less "$file" 2>/dev/null || cat "$file"
+    fi
+}
+
+# =============================================================================
+# PLATFORM DETECTION
+# =============================================================================
+
 detect_platform_early() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         OS_TYPE="macos"
@@ -46,9 +177,28 @@ detect_platform_early() {
     fi
 }
 
+detect_platform() {
+    run_with_spinner "Detecting platform..." sleep 1
+    
+    local platform_msg=""
+    if [ "$IS_MAC" = true ]; then
+        platform_msg="macOS"
+    elif [ "$IS_WSL" = true ]; then
+        platform_msg="WSL on Linux ($DISTRO)"
+    elif [ "$IS_LINUX" = true ]; then
+        platform_msg="Linux ($DISTRO)"
+    fi
+    
+    log_success "Platform detected: $platform_msg"
+}
+
+# =============================================================================
+# PACKAGE INSTALLATION
+# =============================================================================
+
 # Install gum early for better UI
 install_gum_early() {
-    if command -v gum &> /dev/null; then
+    if has_gum; then
         return 0
     fi
     
@@ -102,60 +252,14 @@ gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
     fi
 }
 
-# Cleanup on exit
-WORKING_DIR="$(pwd)"
-function cleanup() {
-    exit_code="$?"
-    cd "$WORKING_DIR"
-    if [ "${exit_code}" -eq 0 ]; then
-        if command -v gum &> /dev/null; then
-            gum style --foreground 212 --border-foreground 212 --border double --align center --width 50 --margin "1 2" --padding "2 4" \
-                "Bootstrap Completed Successfully!" \
-                "Your system will automatically pull" \
-                "updates every 30 minutes"
-        else
-            echo "Bootstrap completed successfully!"
-        fi
-    else
-        if command -v gum &> /dev/null; then
-            gum style --foreground 196 --border-foreground 196 --border thick --align center --width 50 --margin "1 2" --padding "1 2" \
-                "Bootstrap Failed" \
-                "Exit code: ${exit_code}"
-        else
-            echo "Bootstrap failed with exit code ${exit_code}"
-        fi
-    fi
-    exit "${exit_code}"
-}
-trap cleanup EXIT
-
-# Platform detection with gum output
-detect_platform() {
-    gum spin --spinner dot --title "Detecting platform..." -- sleep 1
-    
-    local platform_msg=""
-    if [ "$IS_MAC" = true ]; then
-        platform_msg="macOS"
-    elif [ "$IS_WSL" = true ]; then
-        platform_msg="WSL on Linux ($DISTRO)"
-    elif [ "$IS_LINUX" = true ]; then
-        platform_msg="Linux ($DISTRO)"
-    fi
-    
-    gum style --foreground 212 "Platform detected: $platform_msg"
-}
-
 # Check for required commands
 check_command() {
-    if ! command -v "$1" &> /dev/null; then
-        return 1
-    fi
-    return 0
+    command -v "$1" &> /dev/null
 }
 
 # Install packages based on platform
 install_packages() {
-    gum style --bold "Installing required packages..."
+    log_header "Installing required packages..."
     
     if [ "$IS_MAC" = true ]; then
         install_packages_mac
@@ -171,7 +275,7 @@ install_packages() {
                 install_packages_arch
                 ;;
             *)
-                gum style --foreground 196 "Unsupported Linux distribution: $DISTRO"
+                log_error "Unsupported Linux distribution: $DISTRO"
                 exit 1
                 ;;
         esac
@@ -179,37 +283,36 @@ install_packages() {
 }
 
 install_packages_mac() {
-    # Homebrew should already be installed from gum installation
-    gum spin --spinner dot --title "Installing packages with Homebrew..." -- \
+    run_with_spinner "Installing packages with Homebrew..." \
         brew install git gh curl ansible 1password-cli
 }
 
 install_packages_debian() {
-    gum spin --spinner dot --title "Updating apt sources..." -- \
+    run_with_spinner "Updating apt sources..." \
         sudo apt-get update
     
-    gum spin --spinner dot --title "Installing packages with apt..." -- \
+    run_with_spinner "Installing packages with apt..." \
         sudo apt-get install -y git gh curl ansible ca-certificates openssh-client
     
     # Install 1Password CLI if not present
     if ! check_command op; then
-        gum spin --spinner dot --title "Installing 1Password CLI..." -- bash -c '
+        run_with_spinner "Installing 1Password CLI..." bash -c "
             curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
                 sudo gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" | \
+            echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/\$(dpkg --print-architecture) stable main\" | \
                 sudo tee /etc/apt/sources.list.d/1password.list
             sudo apt-get update && sudo apt-get install -y 1password-cli
-        '
+        "
     fi
 }
 
 install_packages_fedora() {
-    gum spin --spinner dot --title "Installing packages with dnf..." -- \
+    run_with_spinner "Installing packages with dnf..." \
         sudo dnf install -y git gh curl ansible ca-certificates openssh-clients
     
     # Install 1Password CLI if not present
     if ! check_command op; then
-        gum spin --spinner dot --title "Installing 1Password CLI..." -- bash -c '
+        run_with_spinner "Installing 1Password CLI..." bash -c '
             sudo rpm --import https://downloads.1password.com/linux/keys/1password.asc
             sudo sh -c "echo -e \"[1password]\nname=1Password Stable Channel\nbaseurl=https://downloads.1password.com/linux/rpm/stable/\\\$basearch\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=https://downloads.1password.com/linux/keys/1password.asc\" > /etc/yum.repos.d/1password.repo"
             sudo dnf install -y 1password-cli
@@ -218,62 +321,67 @@ install_packages_fedora() {
 }
 
 install_packages_arch() {
-    gum spin --spinner dot --title "Installing packages with pacman..." -- \
+    run_with_spinner "Installing packages with pacman..." \
         sudo pacman -Syu --noconfirm git github-cli curl ansible openssh ca-certificates
     
     # Install from AUR if yay is available
     if check_command yay; then
-        gum spin --spinner dot --title "Installing AUR packages..." -- \
+        run_with_spinner "Installing AUR packages..." \
             yay -S --noconfirm 1password-cli
     fi
 }
 
+# =============================================================================
+# SERVICE SETUP
+# =============================================================================
+
 # Optional SSH setup
 setup_ssh_optional() {
-    if gum confirm "Would you like to set up SSH server access?"; then
+    if confirm "Would you like to set up SSH server access?" "Yes, enable SSH" "No, skip SSH"; then
         setup_ssh
     else
-        gum style --foreground 214 "Skipping SSH server setup (not required for ansible-pull)"
+        log_warning "Skipping SSH server setup (not required for ansible-pull)"
     fi
 }
 
 # Setup SSH based on platform
 setup_ssh() {
-    gum style --bold "Setting up SSH..."
+    log_header "Setting up SSH..."
     
     if [ "$IS_MAC" = true ]; then
         # Enable SSH on macOS
-        gum spin --spinner dot --title "Enabling SSH on macOS..." -- \
+        if run_with_spinner "Enabling SSH on macOS..." \
             sudo systemsetup -setremotelogin on 2>/dev/null || \
-            sudo launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null || \
-            (gum style --foreground 214 "Could not enable SSH automatically. Please enable it in System Preferences > Sharing > Remote Login" && false)
-        
-        if [ $? -eq 0 ]; then
-            gum style --foreground 212 "SSH enabled successfully"
+            sudo launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null; then
+            log_success "SSH enabled successfully"
+        else
+            log_warning "Could not enable SSH automatically. Please enable it in System Preferences > Sharing > Remote Login"
         fi
     elif [ "$IS_LINUX" = true ]; then
         # Install SSH server if requested
-        if gum confirm "Install OpenSSH server?"; then
+        if confirm "Install OpenSSH server?"; then
+            local install_cmd=""
             case "$DISTRO" in
                 ubuntu|debian)
-                    gum spin --spinner dot --title "Installing OpenSSH server..." -- \
-                        sudo apt-get install -y openssh-server
+                    install_cmd="sudo apt-get install -y openssh-server"
                     ;;
                 fedora|rhel|centos)
-                    gum spin --spinner dot --title "Installing OpenSSH server..." -- \
-                        sudo dnf install -y openssh-server
+                    install_cmd="sudo dnf install -y openssh-server"
                     ;;
                 arch)
-                    gum spin --spinner dot --title "Installing OpenSSH server..." -- \
-                        sudo pacman -S --noconfirm openssh
+                    install_cmd="sudo pacman -S --noconfirm openssh"
                     ;;
             esac
             
-            # Enable and start SSH service
-            if systemctl is-enabled ssh &>/dev/null || systemctl is-enabled sshd &>/dev/null; then
-                gum spin --spinner dot --title "Starting SSH service..." -- \
-                    sudo systemctl enable --now ssh 2>/dev/null || sudo systemctl enable --now sshd 2>/dev/null
-                gum style --foreground 212 "SSH service enabled and started"
+            if [ -n "$install_cmd" ]; then
+                run_with_spinner "Installing OpenSSH server..." bash -c "$install_cmd"
+                
+                # Enable and start SSH service
+                if systemctl is-enabled ssh &>/dev/null || systemctl is-enabled sshd &>/dev/null; then
+                    run_with_spinner "Starting SSH service..." \
+                        sudo systemctl enable --now ssh 2>/dev/null || sudo systemctl enable --now sshd 2>/dev/null
+                    log_success "SSH service enabled and started"
+                fi
             fi
         fi
     fi
@@ -285,86 +393,92 @@ setup_ssh() {
 
 # Login to 1Password
 setup_1password() {
-    gum style --bold "Setting up 1Password CLI..."
+    log_header "Setting up 1Password CLI..."
     
     # Check if already signed in
     if op account list &>/dev/null; then
-        gum style --foreground 212 "Already signed in to 1Password"
+        log_success "Already signed in to 1Password"
         return 0
     fi
     
     # Sign in to 1Password
-    gum style "Please sign in to 1Password"
+    log_info "Please sign in to 1Password"
     if ! eval $(op signin); then
-        gum style --foreground 196 "Failed to sign in to 1Password"
-        if gum confirm "Continue without 1Password? (secrets won't be available)"; then
-            gum style --foreground 214 "Continuing without 1Password integration"
+        log_error "Failed to sign in to 1Password"
+        if confirm "Continue without 1Password? (secrets won't be available)"; then
+            log_warning "Continuing without 1Password integration"
             return 0
         else
             exit 1
         fi
     fi
     
-    gum style --foreground 212 "Successfully signed in to 1Password"
+    log_success "Successfully signed in to 1Password"
 }
 
 # Login to GitHub CLI
 setup_github() {
-    gum style --bold "Setting up GitHub CLI..."
+    log_header "Setting up GitHub CLI..."
     
     # Check if already authenticated
     if gh auth status &>/dev/null; then
-        gum style --foreground 212 "Already authenticated with GitHub"
+        log_success "Already authenticated with GitHub"
         return 0
     fi
     
     # Authenticate with GitHub
-    gum style "Please authenticate with GitHub"
+    log_info "Please authenticate with GitHub"
     gh auth login
     
     if gh auth status &>/dev/null; then
-        gum style --foreground 212 "Successfully authenticated with GitHub"
+        log_success "Successfully authenticated with GitHub"
     else
-        gum style --foreground 214 "GitHub authentication skipped"
+        log_warning "GitHub authentication skipped"
     fi
 }
+
+# =============================================================================
+# REPOSITORY MANAGEMENT
+# =============================================================================
 
 # Clone or update the repository
 setup_repository() {
     local repo="${1:-$REPO_DEFAULT}"
     local target_dir="$HOME/src/$REPO_NAME"
     
-    gum style --bold "Setting up repository: $repo"
+    log_header "Setting up repository: $repo"
     
     # Check if already cloned
     if [ -d "$target_dir" ]; then
         cd "$target_dir"
         if [ "$(git config --get remote.origin.url)" = "$repo" ]; then
-            gum spin --spinner dot --title "Repository exists, pulling latest changes..." -- \
-                git pull
+            run_with_spinner "Repository exists, pulling latest changes..." git pull
             ROOT_DIR="$(pwd)"
             export ROOT_DIR
-            gum style --foreground 212 "Repository updated successfully"
+            log_success "Repository updated successfully"
             return 0
         else
-            gum style --foreground 196 "Directory exists but has different remote: $(git config --get remote.origin.url)"
+            log_error "Directory exists but has different remote: $(git config --get remote.origin.url)"
             exit 1
         fi
     fi
     
     # Ask where to clone
-    target_dir=$(gum input --placeholder "$HOME/src/$REPO_NAME" --value "$HOME/src/$REPO_NAME" --prompt "Where to clone repository? ")
+    target_dir=$(get_input "Where to clone repository? " "$HOME/src/$REPO_NAME")
     
     # Clone the repository
     mkdir -p "$(dirname "$target_dir")"
-    gum spin --spinner dot --title "Cloning repository..." -- \
-        git clone "$repo" "$target_dir"
+    run_with_spinner "Cloning repository..." git clone "$repo" "$target_dir"
     
     cd "$target_dir"
     ROOT_DIR="$(pwd)"
     export ROOT_DIR
-    gum style --foreground 212 "Repository cloned successfully to $target_dir"
+    log_success "Repository cloned successfully to $target_dir"
 }
+
+# =============================================================================
+# HOST CONFIGURATION
+# =============================================================================
 
 # Generate host_vars file for this host
 generate_host_vars() {
@@ -373,14 +487,14 @@ generate_host_vars() {
     local host_vars_file="$ROOT_DIR/host_vars/${hostname}.yml"
     
     if [ -f "$host_vars_file" ]; then
-        gum style --foreground 214 "Host vars file already exists: $host_vars_file"
-        if gum confirm "View existing configuration?"; then
-            gum pager < "$host_vars_file"
+        log_warning "Host vars file already exists: $host_vars_file"
+        if confirm "View existing configuration?"; then
+            show_file "$host_vars_file"
         fi
         return 0
     fi
     
-    gum style --bold "Generating host configuration..."
+    log_header "Generating host configuration..."
     
     # Determine if workstation or server
     local host_type="server"
@@ -389,14 +503,38 @@ generate_host_vars() {
     fi
     
     # Ask user to confirm or change
-    host_type=$(gum choose --header "Select host type:" "workstation" "server" --selected="$host_type")
+    host_type=$(choose "Select host type:" "workstation" "server")
     
     # Ask for user profile
-    local user_profile=$(gum choose --header "Select user profile:" "nsheaps" "nheaps" "custom")
+    local user_profile=$(choose "Select user profile:" "nsheaps" "nheaps" "custom")
     
     if [ "$user_profile" = "custom" ]; then
-        user_profile=$(gum input --placeholder "profile_name" --prompt "Enter profile name: ")
+        user_profile=$(get_input "Enter profile name: " "profile_name")
     fi
+    
+    # Ask for ansible-pull schedule
+    local cron_schedule=$(choose "Select update frequency:" \
+        "Every 30 minutes (*/30)" \
+        "Every hour (0)" \
+        "Every 2 hours (0 */2)" \
+        "Every 6 hours (0 */6)" \
+        "Daily at midnight (0 0)" \
+        "Custom")
+    
+    local cron_minute="*/30"
+    local cron_hour="*"
+    
+    case "$cron_schedule" in
+        "Every 30 minutes"*) cron_minute="*/30"; cron_hour="*" ;;
+        "Every hour"*) cron_minute="0"; cron_hour="*" ;;
+        "Every 2 hours"*) cron_minute="0"; cron_hour="*/2" ;;
+        "Every 6 hours"*) cron_minute="0"; cron_hour="*/6" ;;
+        "Daily at midnight"*) cron_minute="0"; cron_hour="0" ;;
+        "Custom")
+            cron_minute=$(get_input "Enter cron minute (0-59 or */N): " "*/30")
+            cron_hour=$(get_input "Enter cron hour (0-23 or */N or *): " "*")
+            ;;
+    esac
     
     # Create host_vars file
     cat > "$host_vars_file" << EOF
@@ -406,8 +544,8 @@ generate_host_vars() {
 
 # Ansible-pull configuration
 ansible_pull_enabled: true
-ansible_pull_cron_minute: "*/30"
-ansible_pull_cron_hour: "*"
+ansible_pull_cron_minute: "$cron_minute"
+ansible_pull_cron_hour: "$cron_hour"
 
 # User configuration
 user_configs:
@@ -419,71 +557,124 @@ user_configs:
 # Host type: $host_type
 EOF
     
-    gum style --foreground 212 "Generated host_vars file: $host_vars_file"
+    log_success "Generated host_vars file: $host_vars_file"
     
     # Update inventory
     local inventory_file="$ROOT_DIR/hosts"
     if ! grep -q "^$hostname" "$inventory_file" 2>/dev/null; then
-        gum spin --spinner dot --title "Adding $hostname to inventory..." -- bash -c "
+        run_with_spinner "Adding $hostname to inventory..." bash -c "
             echo '' >> '$inventory_file'
             echo '[$host_type]' >> '$inventory_file'
             echo '$hostname' >> '$inventory_file'
         "
-        gum style --foreground 212 "Added $hostname to inventory as $host_type"
+        log_success "Added $hostname to inventory as $host_type"
     fi
 }
 
+# =============================================================================
+# BOOTSTRAP EXECUTION
+# =============================================================================
+
 # Run bootstrap playbook
 run_bootstrap() {
-    gum style --bold "Running bootstrap playbook..."
+    log_header "Running bootstrap playbook..."
     
     cd "$ROOT_DIR"
     
     # First, do a dry run
-    gum spin --spinner dot --title "Performing dry run..." -- \
+    if run_with_spinner "Performing dry run..." \
         ansible-playbook playbooks/bootstrap.yml \
             --connection=local \
             --check \
             --diff \
-            --extra-vars "running_as=$(whoami) root_dir=$ROOT_DIR" 2>&1
+            --extra-vars "running_as=$(whoami) root_dir=$ROOT_DIR" 2>&1; then
+        log_success "Dry run completed successfully"
+    else
+        log_warning "Dry run encountered issues (this may be normal for some tasks)"
+    fi
     
     # Ask for confirmation
-    if gum confirm "The dry run completed. Would you like to proceed with the actual bootstrap?"; then
-        # Run the actual bootstrap
-        gum style "Running bootstrap (this will require sudo)..."
-        ansible-playbook playbooks/bootstrap.yml \
+    if confirm "Proceed with the actual bootstrap?" "Yes, run bootstrap" "No, cancel"; then
+        log_info "Running bootstrap (this will require sudo)..."
+        if ansible-playbook playbooks/bootstrap.yml \
             --connection=local \
             --ask-become-pass \
-            --extra-vars "running_as=$(whoami) root_dir=$ROOT_DIR"
-        
-        gum style --foreground 212 "Bootstrap playbook completed"
+            --extra-vars "running_as=$(whoami) root_dir=$ROOT_DIR"; then
+            log_success "Bootstrap playbook completed"
+            return 0
+        else
+            log_error "Bootstrap playbook failed"
+            return 1
+        fi
     else
-        gum style --foreground 214 "Bootstrap cancelled"
+        log_warning "Bootstrap cancelled"
         return 1
     fi
 }
 
 # Run first ansible-pull
 run_first_pull() {
-    gum style --bold "First ansible-pull setup"
+    log_header "First ansible-pull setup"
     
     # Ask for confirmation
-    if gum confirm "Would you like to run the first ansible-pull now?" --affirmative "Yes, configure my system" --negative "No, I'll do it later"; then
-        # Run ansible-pull
-        gum style "Running ansible-pull (this will require sudo)..."
-        sudo ansible-pull \
+    if confirm "Would you like to run the first ansible-pull now?" \
+        "Yes, configure my system" \
+        "No, I'll do it later"; then
+        
+        log_info "Running ansible-pull (this will require sudo)..."
+        if sudo ansible-pull \
             -U "$REPO_DEFAULT" \
             -C "$DEFAULT_BRANCH" \
-            --ask-become-pass
-        
-        gum style --foreground 212 "First ansible-pull completed"
+            --ask-become-pass; then
+            log_success "First ansible-pull completed"
+        else
+            log_error "Ansible-pull failed"
+        fi
     else
-        gum style --foreground 214 "You can run ansible-pull manually later with:"
-        gum style --foreground 245 "  sudo ansible-pull -U $REPO_DEFAULT -C $DEFAULT_BRANCH"
+        log_info "You can run ansible-pull manually later with:"
+        log_info "  sudo ansible-pull -U $REPO_DEFAULT -C $DEFAULT_BRANCH"
     fi
 }
 
-# Main execution
+# =============================================================================
+# CLEANUP & EXIT HANDLERS
+# =============================================================================
+
+WORKING_DIR="$(pwd)"
+function cleanup() {
+    local exit_code="$?"
+    cd "$WORKING_DIR"
+    
+    if [ "${exit_code}" -eq 0 ]; then
+        show_banner \
+            "Bootstrap Completed Successfully!" \
+            "" \
+            "Your system will automatically pull" \
+            "updates based on your schedule"
+    else
+        if has_gum; then
+            gum style \
+                --foreground 196 \
+                --border-foreground 196 \
+                --border thick \
+                --align center \
+                --width 50 \
+                --margin "1 2" \
+                --padding "1 2" \
+                "Bootstrap Failed" \
+                "Exit code: ${exit_code}"
+        else
+            echo "Bootstrap failed with exit code ${exit_code}"
+        fi
+    fi
+    exit "${exit_code}"
+}
+trap cleanup EXIT
+
+# =============================================================================
+# MAIN EXECUTION
+# =============================================================================
+
 main() {
     # Early platform detection for gum installation
     detect_platform_early
@@ -491,21 +682,14 @@ main() {
     # Install gum first for better UI
     install_gum_early
     
-    # Now we can use gum for everything
-    gum style \
-        --foreground 212 \
-        --border-foreground 212 \
-        --border double \
-        --align center \
-        --width 50 \
-        --margin "1 2" \
-        --padding "2 4" \
+    # Show welcome banner
+    show_banner \
         "n8-ansible Bootstrap" \
         "Version $SCRIPT_VERSION"
     
     # Check for sudo access
-    gum spin --spinner dot --title "Checking sudo access..." -- sudo -v
-    gum style --foreground 212 "Sudo access confirmed"
+    run_with_spinner "Checking sudo access..." sudo -v
+    log_success "Sudo access confirmed"
     
     # Detect platform with gum output
     detect_platform
@@ -523,9 +707,9 @@ main() {
     setup_github
     
     # Setup repository
-    repo_url="${1:-}"
+    local repo_url="${1:-}"
     if [ -z "$repo_url" ]; then
-        repo_url=$(gum input --placeholder "$REPO_DEFAULT" --value "$REPO_DEFAULT" --prompt "Repository URL: ")
+        repo_url=$(get_input "Repository URL: " "$REPO_DEFAULT")
     fi
     setup_repository "$repo_url"
     
