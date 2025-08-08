@@ -1,0 +1,283 @@
+---
+- name: users | {{ username }} | create user
+  user:
+    name: "{{ username }}"
+    uid: "{{ uid | default(omit) }}"
+    group: "{{ username }}"
+    groups: "{{ user_groups }}"
+    shell: "{{ user_shell }}"
+    password: "{{ user_password | default('!') }}"
+    comment: "{{ user_full_name }}"
+    update_password: on_create
+    state: present
+  tags:
+    - users
+    - "{{ username }}"
+
+- name: users | {{ username }} | create home directory
+  file:
+    path: "/home/{{ username }}"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0755
+  tags:
+    - users
+    - "{{ username }}"
+
+- name: users | {{ username }} | create config directories
+  file:
+    path: "/home/{{ username }}/{{ item }}"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0700
+  loop:
+    - .ssh
+    - .config
+  tags:
+    - users
+    - "{{ username }}"
+
+# Bash configuration
+- name: users | {{ username }} | copy bash configs
+  copy:
+    src: "{{ profile }}/bash/{{ item }}"
+    dest: "/home/{{ username }}/.{{ item }}"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0644
+  loop:
+    - bash_aliases
+    - bash_functions
+    - bash_profile
+    - bash_prompt
+    - bashrc
+    - profile
+  when: "'bash' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - bash
+
+# Git configuration - generate from template with custom email
+- name: users | {{ username }} | generate git config
+  copy:
+    content: |
+      [user]
+      	email = {{ user_email }}
+      	name = {{ user_full_name }}
+    dest: "/home/{{ username }}/.gitconfig"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0644
+  when: "'git' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - git
+
+# Htop configuration
+- name: users | {{ username }} | create htop config directory
+  file:
+    path: "/home/{{ username }}/.config/htop"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0755
+  when: "'htop' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - htop
+
+- name: users | {{ username }} | copy htop config
+  copy:
+    src: "{{ profile }}/htop/htoprc"
+    dest: "/home/{{ username }}/.config/htop/htoprc"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0644
+  when: "'htop' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - htop
+
+# MC configuration
+- name: users | {{ username }} | create mc config directory
+  file:
+    path: "/home/{{ username }}/.config/mc"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0755
+  when: "'mc' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - mc
+
+- name: users | {{ username }} | copy mc config
+  copy:
+    src: "{{ profile }}/mc/mc.ini"
+    dest: "/home/{{ username }}/.config/mc/ini"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0644
+  when: "'mc' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - mc
+
+# SSH configuration
+- name: users | {{ username }} | add authorized SSH key
+  authorized_key:
+    user: "{{ username }}"
+    state: present
+    key: "{{ lookup('file', profile + '/ssh/' + profile + '_id_ed25519.pub') }}"
+  when: "'ssh' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - ssh
+
+# Tmux configuration - replace username in paths
+- name: users | {{ username }} | copy tmux configs
+  copy:
+    src: "{{ profile }}/tmux/{{ item }}"
+    dest: "/home/{{ username }}/.{{ item }}"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0644
+  loop:
+    - tmux.conf.server
+    - tmux.conf.workstation
+  when: "'tmux' in user_configs"
+  register: tmux_copy
+  tags:
+    - users
+    - "{{ username }}"
+    - tmux
+
+- name: users | {{ username }} | update tmux config paths
+  replace:
+    path: "/home/{{ username }}/.{{ item }}"
+    regexp: "/home/nsheaps/"
+    replace: "/home/{{ username }}/"
+  loop:
+    - tmux.conf.server
+    - tmux.conf.workstation
+  when: 
+    - "'tmux' in user_configs"
+    - username != profile
+  tags:
+    - users
+    - "{{ username }}"
+    - tmux
+
+- name: users | {{ username }} | set tmux config based on host type
+  file:
+    src: "/home/{{ username }}/.tmux.conf.{{ 'workstation' if 'workstation' in group_names else 'server' }}"
+    dest: "/home/{{ username }}/.tmux.conf"
+    state: link
+    owner: "{{ username }}"
+    group: "{{ username }}"
+  when: "'tmux' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - tmux
+
+# Zsh configuration
+- name: users | {{ username }} | copy zsh configs
+  copy:
+    src: "{{ profile }}/zsh/zshrc"
+    dest: "/home/{{ username }}/.zshrc"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0644
+  when: "'zsh' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - zsh
+
+- name: users | {{ username }} | create zsh config directory
+  file:
+    path: "/home/{{ username }}/.config/zsh"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0755
+  when: "'zsh' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - zsh
+
+- name: users | {{ username }} | copy zsh config modules
+  copy:
+    src: "{{ profile }}/zsh/{{ item }}"
+    dest: "/home/{{ username }}/.config/zsh/{{ item }}"
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: 0644
+  loop:
+    - aliases.zsh
+    - bindkey.zsh
+    - completion.zsh
+    - exports.zsh
+    - functions.zsh
+    - history.zsh
+    - path.zsh
+    - plugins.zsh
+    - prompt.zsh
+    - setopt.zsh
+    - theming.zsh
+  when: "'zsh' in user_configs"
+  tags:
+    - users
+    - "{{ username }}"
+    - zsh
+
+- name: users | {{ username }} | update zsh path configs
+  replace:
+    path: "/home/{{ username }}/.config/zsh/path.zsh"
+    regexp: "/home/nsheaps/"
+    replace: "/home/{{ username }}/"
+  when: 
+    - "'zsh' in user_configs"
+    - username != profile
+  tags:
+    - users
+    - "{{ username }}"
+    - zsh
+
+# Update bashrc paths if username differs from profile
+- name: users | {{ username }} | update bash paths
+  replace:
+    path: "/home/{{ username }}/.bashrc"
+    regexp: "/home/nsheaps/"
+    replace: "/home/{{ username }}/"
+  when: 
+    - "'bash' in user_configs"
+    - username != profile
+  tags:
+    - users
+    - "{{ username }}"
+    - bash
+
+- name: users | {{ username }} | update bash aliases
+  replace:
+    path: "/home/{{ username }}/.bash_aliases"
+    regexp: "nsheaps@"
+    replace: "{{ username }}@"
+  when: 
+    - "'bash' in user_configs"
+    - username != profile
+  tags:
+    - users
+    - "{{ username }}"
+    - bash

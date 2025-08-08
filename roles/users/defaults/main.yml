@@ -1,0 +1,55 @@
+---
+# User configuration mapping
+# Maps actual system usernames to configuration profiles
+# Example:
+# user_configs:
+#   - system_user: nheaps        # Actual username on the system
+#     config_profile: nsheaps     # Configuration profile to apply
+#     email: nheaps@company.com   # Override email (optional)
+#     full_name: "Nathan H"       # Override full name (optional)
+#   - system_user: nsheaps
+#     config_profile: nsheaps
+#     email: nsheaps@gmail.com
+user_configs: []
+
+# Default shell for users
+default_user_shell: /bin/bash
+
+# Default groups for regular users  
+default_user_groups:
+  - sudo
+  - docker
+
+# Configuration profile defaults
+# These define the default values for each configuration profile
+config_profiles:
+  nsheaps:
+    full_name: "Nathan Heaps"
+    email: nsheaps@gmail.com
+    shell: /bin/bash
+    groups:
+      - sudo
+      - docker
+      - adm
+      - cdrom
+      - dip
+      - plugdev
+      - lpadmin
+    configs:
+      - bash
+      - git
+      - htop
+      - mc
+      - ssh
+      - tmux
+      - zsh
+  
+  example_user:
+    full_name: "Example User"
+    email: user@example.com
+    shell: /bin/bash
+    groups:
+      - sudo
+      - docker
+    configs:
+      - all  # Include all configs from example_user directory
