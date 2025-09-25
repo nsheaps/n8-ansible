@@ -36,7 +36,7 @@ jobs:
             ## Ansible Dry Run Results
 
             :hourglass_flowing_sand: Running Ansible Dry Run...
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # connect to vpn - needed to access private network
       - name: Install OpenVPN
