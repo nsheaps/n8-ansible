@@ -27,7 +27,7 @@ jobs:
     steps:
 
 
-      - uses: mshick/add-pr-comment@v2
+      - uses: mshick/add-pr-comment@v3
         with:
           refresh-message-position: false
           update-only: true
@@ -167,7 +167,7 @@ jobs:
 
           exit $FAILED
 
-      - uses: mshick/add-pr-comment@v2
+      - uses: mshick/add-pr-comment@v3
         if: (!cancelled())
         with:
           refresh-message-position: true
