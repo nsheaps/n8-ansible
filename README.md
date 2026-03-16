@@ -1,5 +1,8 @@
 # n8-ansible
 
+> [!WARNING]
+> **This repository has been deprecated.** All ansible configuration has been merged into [nsheaps/iac](https://github.com/nsheaps/iac) under the `ansible/` directory. Please use that repository going forward.
+
 This is the home network setup for @nsheaps. This project is used to set up both Windows and Linux hosts on a home network. It is based on other upstream projects. This is specific to my setup and I would not recommend using it as-is, but I leave it public for reference by others.
 
 > [!NOTE]
