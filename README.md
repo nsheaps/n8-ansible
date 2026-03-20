@@ -1,197 +1,66 @@
 # n8-ansible
 
-> [!WARNING]
-> **This repository has been deprecated.** All ansible configuration has been merged into [nsheaps/iac](https://github.com/nsheaps/iac) under the `ansible/` directory. Please use that repository going forward.
+Personal home-network configuration using Ansible. Uses `ansible-pull` so each host self-provisions from this repo on a schedule.
 
-This is the home network setup for @nsheaps. This project is used to set up both Windows and Linux hosts on a home network. It is based on other upstream projects. This is specific to my setup and I would not recommend using it as-is, but I leave it public for reference by others.
+Supports Linux, macOS, and WSL.
 
-> [!NOTE]
-> In many cases, secrets are required for certain tasks, like those found in variables that need to be encrypted 
+## Quick Start
 
-## Getting Started
+### Bootstrap a New Host
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
-
-### Prerequisites
-
-- Ansible (version 2.9 or later)
-- Python (version 3.6 or later)
-
-```bash
-# macOS or linuxbrew
-brew install ansible
-
-# apt (debian, ubuntu, etc.)
-sudo apt update
-sudo apt install ansible
-```
-
-### Installation
-
-#### Quick Bootstrap (Recommended)
-
-For new hosts, use the bootstrap script:
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/bootstrap)
 ```
 
-This will:
-- Install required packages (ansible, 1Password CLI, git, etc.)
-- Set up SSH and authentication
-- Clone this repository
-- Generate host configuration
-- Optionally run the first ansible-pull
+This installs dependencies, sets up SSH/auth, clones the repo, generates host config, and optionally runs the first `ansible-pull`.
 
-See [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md) for detailed instructions.
-
-#### Manual Installation
-
-1. Clone the repository:
-    ```
-    git clone https://github.com/nsheaps/n8-ansible.git
-    ```
-2. Navigate to the project directory:
-    ```
-    cd n8-ansible
-    ```
-3. Run the playbook:
-    ```
-    ansible-playbook local.yml --check  # Dry run
-    ansible-playbook local.yml           # Apply
-    ```
-
-## Running Locally
-
-To run the Ansible playbooks locally, use the following command:
-
-## Dry Run
-
-To perform a "dry run" (i.e., simulate the playbook run without making any changes), use the `--check` flag:
-
-`ansible-playbook ./playbooks/site.yml --inventory ./inventory/n8house --check`
-
-## Testing
-
-The project includes a comprehensive test suite to validate the Ansible configuration.
-
-### Quick Test
-
-Use the ansible-test command to run all tests (available in PATH when using direnv):
+### Manual Setup
 
 ```bash
-# Run all tests
-ansible-test
-
-# Run a specific test
-ansible-test inheritance
-ansible-test users
-ansible-test syntax
-
-# Run with verbose output
-ansible-test -v
-
-# List available tests
-ansible-test --list
-
-# Get help
-ansible-test --help
+git clone https://github.com/nsheaps/n8-ansible.git
+cd n8-ansible
+ansible-playbook local.yml --check  # Dry run
+sudo ansible-playbook local.yml     # Apply
 ```
 
-Note: If not using direnv, use `./bin/ansible-test` instead.
-
-### Manual Testing
-
-You can also run test playbooks directly:
+### Run ansible-pull Directly
 
 ```bash
-# Test user inheritance
-ansible-playbook tests/playbooks/test_user_inheritance.yml
-
-# Test user configuration
-ansible-playbook tests/playbooks/test_user_configuration.yml
-
-# Test syntax
-ansible-playbook tests/playbooks/test_syntax.yml
-```
-
-See `tests/README.md` for detailed testing documentation.
-
-## Configuring New Hosts
-TBD UPDATE
-> [!IMPORTANT]
-> Don't forget to add the new host to the inventory and if necessary, set up a static DHCP reservation on the network gateway.
-
-#### set up a new host using ansible pull
-**NOTE:** Host must already be defined.
-
-```sh
-# -U: the https url of the repo
-# -C: needed only if using certain branhc (omit, if using the branch defined in the config)
 sudo ansible-pull -U https://github.com/nsheaps/n8-ansible.git -C main
 ```
 
+## Hosts
 
-### Linux
-TBD UPDATE
-Quick run for new node, see [`./bin/bootstrap`](./bin/bootstrap) for more details
+| Hostname | OS | Purpose |
+|---|---|---|
+| n8laptop | Linux | Laptop |
+| n8htpc | Linux | HTPC |
+| n8htpc-wsl | WSL | WSL on n8htpc |
+| n8work | macOS | Workstation |
 
-### Windows
-TBD UPDATE
-See also: [Ansible documentation](https://docs.ansible.com/ansible/latest/user_guide/windows_setup.html)
+## Architecture
 
-1. Install Windows Remote Management (WinRM) on the new host.
-2. Create a new user for Ansible to use.
-3. Add the Ansible user to the Administrators group.
-4. Configure WinRM to allow connections from the control node. You can use the `ConfigureRemotingForAnsible.ps1` script provided in the Ansible GitHub repository.
-5. Test the setup by running `ansible -m win_ping <new-host-ip>` from the control node.
+```
+ansible-pull → local.yml
+  → roles/ansible-pull (all hosts): ansible user, cron, provision script
+  → roles/update-notifier (post-task): desktop notification with version/compare link
+```
 
-### Windows Subsystem for Linux (WSL)
+Additional roles can be applied per host or group. Hosts are in both purpose groups (`laptop`, `htpc`, `workstation`) and OS groups (`linux`, `macos`, `wsl`).
 
-1. Install WSL on the new host.
-2. Install Ansible within WSL using the same steps as for Linux.
-3. Follow the same steps as for Linux to create a new user, copy the SSH key, and test the setup.
-4. Forward the port used by SSH (tbd) because WSL uses NAT instead of bridged networking.
+## Structure
 
-Remember to update the inventory file (`inventory/production`) with the details of the new host.
+| Path | Purpose |
+|---|---|
+| `local.yml` | Main playbook (ansible-pull entry point) |
+| `hosts` | Inventory file |
+| `host_vars/` | Per-host variables |
+| `group_vars/` | Shared variables |
+| `roles/` | Ansible roles |
+| `playbooks/` | Additional playbooks (bootstrap) |
+| `bin/` | Helper scripts (bootstrap, test runner) |
+| `tests/` | Test playbooks |
 
-# Personal Ansible Desktop Configs
+## License
 
-This is a repository utilising `ansible-pull` to configure Linux desktop and server envionments. 
-It is based on the awsome [LearnLinuxTV/personal_ansible_desktop_configs](https://github.com/LearnLinuxTV/personal_ansible_desktop_configs), however it has been heavily modified, to reflect my needs.
-
-## Disclaimer
-This repository contains a copy of the Ansible configuration that I use for laptops, desktops as well as servers.
-Please don't directly use this against your own machines, as it is something I developed for myself and may not translate to your use-case. It even configures OpenSSH, so if you run it you may get locked out. 
-
-## How does it work?
-As mentioned above, it uses Ansible pull, so some familiarity with that is required.
-
-The folder structure breaks down like this:
-
-**local.yml**: This is the Playbook that Ansible expects to find by default in pull-mode, think of it as an "index" of sorts that pulls other Playbooks in.
-
-
-**ansible.cfg**: Configuration settings for Ansible goes here.
-
-
-**group_vars/**: This directory is where I can place variables that will be applied on every system.
-
-
-**host_vars/**: Each laptop/desktop/server gets a host_vars file in this folder, named after its hostname. Sets variables specific to that computer.
-
-
-**hosts**: This is the inventory file. Even in pull-mode, an inventory file can be used. This is how Ansible knows what group to put a machine in.
-
-
-**playbooks**: Additional playbooks that I may want to run, or have triggered.
-
-
-**roles/**: This directory contains my base, workstation, and server roles (and future roles I am adding as-and-when). Every host gets the base role. Then either 'workstation' or 'server', depending on what it is.
-
-**roles/base**: This role is for every host, regardles of the type of device it is. This role contains things that are intended to be on every host, such as default configs, users, etc.
-
-**roles/workstation**: After the base role runs on a host, this role runs only on hosts that are designated to be workstations. GUI-specific things, such as GUI apps (Firefox, etc), Flatpaks, wallpaper, etc. Has a folder for the GNOME and MATE desktops.
-
-**roles/server**: After the base role runs on a host, this role runs only on hosts designated as servers. Monitoring plugins, unattended-updates, server firewall rules, and other server-related things are configured here.
-
-After it's run for the first time manually, this Ansible config creates its own Cronjob for itself on that machine so you never have to run it manually again going forward, and it will track all future commits and run them against all your machines as soon as you commit a change. You can find the playbook for Cron in the base role.
+MIT
