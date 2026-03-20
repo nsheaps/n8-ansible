@@ -32,14 +32,13 @@ Uses `ansible-pull` for hosts to continuously check for updates and apply change
 | Hostname | OS | Groups |
 |---|---|---|
 | n8laptop | Linux | laptop, linux |
-| n8htpc | Linux | htpc, linux |
-| n8htpc-wsl | WSL (on n8htpc) | htpc, wsl |
-| n8work | macOS (Nathans-64GB-MBP) | workstation, macos |
+| n8htpc-wsl | WSL (on n8htpc, which runs Windows) | htpc, wsl |
+| n8work | macOS (Nathans-64GB-MBP) | laptop, macos |
 
 ### Inventory Groups
 
 Hosts are in **both** purpose and OS groups:
-- **Purpose**: `laptop`, `htpc`, `workstation`
+- **Purpose**: `laptop`, `htpc`
 - **OS family**: `linux`, `macos`, `wsl`
 
 ### Playbook Structure
