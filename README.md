@@ -8,13 +8,28 @@ Supports Linux (Ubuntu), macOS, and WSL.
 
 ## Quick Start
 
-One command to onboard any machine (new or existing):
+### Option A: Homebrew (recommended)
+
+```bash
+brew tap nsheaps/devsetup
+brew install nsheaps/devsetup/n8-bootstrap
+n8-bootstrap
+```
+
+### Option B: With mise
+
+```bash
+mise use -g nsheaps/devsetup:n8-bootstrap
+n8-bootstrap
+```
+
+### Option C: Direct (public repo only)
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nsheaps/iac/main/ansible/bin/bootstrap)
 ```
 
-The script will interactively prompt for:
+The bootstrap will interactively prompt for:
 - **Hostname** (default: current hostname)
 - **Username** (default: current user)
 - **OS group** (auto-detected: `linux`, `macos`, or `wsl`)
