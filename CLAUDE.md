@@ -44,6 +44,7 @@ Desired features (checked is completed):
 - [ ] Support for Windows
 - [ ] Support for Windows/WSL
 - [x] Secret storage using 1Password
+- [x] Simple one-line join (`bin/join`) — minimal ansible-pull enrollment for mac/linux
 - [x] Bootstrap script
   - [x] Installs `gum`
   - [x] Installs `1Password CLI` (replaced lastpass)
@@ -176,6 +177,30 @@ See `tests/README.md` for detailed testing documentation.
 - **Fixed ansible.log Warning**: Commented out log_path in ansible.cfg to prevent permission issues during local runs
 - **Ansible-Pull Role Extraction**: Moved ansible-pull setup from base role to dedicated ansible-pull role for better modularity
 
+### Simple Join Workflow (`bin/join`)
+- **Purpose**: The deliberately minimal counterpart to `bin/bootstrap`. One
+  command (`bash <(curl -fsSL .../bin/join)`) enrolls a Mac or Linux machine
+  into ansible-pull with the fewest moving parts. No 1Password, no gum, no SSH
+  setup.
+- **Interactive prompts (TTY only)**: just three — inventory name (default
+  `hostname -s`), pull source (repo URL + branch), and check frequency
+  (minutes). Non-interactive runs use flags / `ANSIBLE_PULL_*` env vars.
+- **Privilege model**: creates a dedicated `ansible` user with passwordless
+  sudo (`/etc/sudoers.d/ansible-pull`) and runs the pull *as that user* — so
+  `become: true` still manages everything without a direct root login. (User
+  choice, 2026-06-06: "use an ansible user", not root-direct.)
+- **Scheduler**: cron entry in the `ansible` user's crontab on Linux; a
+  LaunchDaemon (`com.n8-ansible.pull`, `UserName=ansible`) on macOS. Both call
+  `/usr/local/bin/ansible-pull-run` (a tiny wrapper, distinct from the role's
+  `/usr/local/bin/ansible-provision`).
+- **Inventory**: opens a *draft PR* adding `host_vars/<name>.yml` + the inventory
+  entry via `gh` (runs `gh auth login` if needed); falls back to printing the
+  files when `gh` is unavailable.
+- **Avoids double-scheduling**: generated host_vars sets
+  `ansible_pull_enabled: false` so the `ansible-pull` role's own cron doesn't
+  compete with the join-installed schedule.
+- **Docs**: `docs/JOIN.md`.
+
 ### Ansible-Pull Automation
 - **Dedicated ansible-pull role**: Modular setup for automated provisioning
 - **Configurable scheduling**: Cron jobs run every 30 minutes by default (via `ansible_pull_cron_minute`)
@@ -187,6 +212,7 @@ See `tests/README.md` for detailed testing documentation.
 
 ## Important Files
 
+- **bin/join**: One-line simple ansible-pull enrollment (see docs/JOIN.md)
 - **local.yml**: Main entry point for ansible-pull
 - **roles/base/templates/provision.sh.j2**: Template for the provision script
 - **roles/base/tasks/system_setup/cron.yml**: Sets up automated provisioning

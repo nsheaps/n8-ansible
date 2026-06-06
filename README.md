@@ -25,9 +25,22 @@ sudo apt install ansible
 
 ### Installation
 
-#### Quick Bootstrap (Recommended)
+#### One-line Join (Simplest — Recommended)
 
-For new hosts, use the bootstrap script:
+To put any Mac or Linux machine under ansible-pull management with a single
+command:
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/join)
+```
+
+When run interactively it asks only three things — what to name the machine,
+where to pull from, and how often — then creates an `ansible` user, installs a
+scheduled pull (cron on Linux, LaunchDaemon on macOS), and opens a draft PR
+adding the host to the inventory. See [docs/JOIN.md](docs/JOIN.md).
+
+#### Full Bootstrap (1Password, SSH, gum UI)
+
+For the full-featured onboarding flow:
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/bootstrap)
 ```

@@ -1,0 +1,489 @@
+#!/usr/bin/env bash
+#
+# n8-ansible :: join
+# ------------------
+# The simplest possible way to put a Mac or Linux machine under ansible-pull
+# management. One command, no 1Password, no gum, no SSH server setup.
+#
+#   bash <(curl -fsSL https://raw.githubusercontent.com/nsheaps/n8-ansible/main/bin/join)
+#
+# What it does:
+#   1. Installs git + ansible (brew / apt / dnf / pacman).
+#   2. Asks (when run interactively) for three things, with sensible defaults:
+#        - what to name this machine in the inventory   (default: hostname -s)
+#        - where to pull config from                     (repo URL + branch)
+#        - how often to check for updates                (minutes)
+#   3. Creates a dedicated `ansible` user with passwordless sudo and installs
+#      a tiny pull loop that runs *as that user*:
+#        - Linux : an `ansible` crontab entry calling /usr/local/bin/ansible-pull-run
+#        - macOS : a LaunchDaemon (UserName=ansible) calling the same script
+#   4. Opens a draft PR adding host_vars/<name>.yml + the inventory entry,
+#      logging you in with `gh` first if needed. (Falls back to printing the
+#      files if `gh` is unavailable.)
+#   5. Runs the first pull immediately.
+#
+# The pull runs as the `ansible` user, which has passwordless sudo, so ansible
+# can still manage *anything* (packages, services, users, files, configs) via
+# `become: true` — without logging in as root directly.
+#
+# Non-interactive use (CI, piped input) is fully supported via flags / env vars:
+#   ANSIBLE_PULL_NAME, ANSIBLE_PULL_REPO, ANSIBLE_PULL_BRANCH,
+#   ANSIBLE_PULL_MINUTES, ANSIBLE_PULL_GROUP, ANSIBLE_PULL_NO_PR=1
+#
+set -euo pipefail
+
+# --- defaults ---------------------------------------------------------------
+DEFAULT_REPO="https://github.com/nsheaps/n8-ansible.git"
+DEFAULT_BRANCH="main"
+DEFAULT_MINUTES="30"
+DEFAULT_GROUP="workstation"
+
+ANSIBLE_USER="ansible"
+SUDOERS_FILE="/etc/sudoers.d/ansible-pull"
+
+WRAPPER_PATH="/usr/local/bin/ansible-pull-run"
+LAUNCHD_LABEL="com.n8-ansible.pull"
+LAUNCHD_PLIST="/Library/LaunchDaemons/${LAUNCHD_LABEL}.plist"
+LOGFILE="/var/log/ansible-pull.log"
+
+# --- platform ---------------------------------------------------------------
+IS_MAC=false
+IS_LINUX=false
+DISTRO="unknown"
+
+# --- tiny logging helpers (no external deps) --------------------------------
+c_reset=$'\033[0m'; c_blue=$'\033[1;34m'; c_green=$'\033[1;32m'
+c_yellow=$'\033[1;33m'; c_red=$'\033[1;31m'
+say()  { printf '%s==>%s %s\n' "$c_blue"  "$c_reset" "$*"; }
+ok()   { printf '%s ok%s %s\n'  "$c_green" "$c_reset" "$*"; }
+warn() { printf '%swarn%s %s\n' "$c_yellow" "$c_reset" "$*" >&2; }
+die()  { printf '%serr%s %s\n'  "$c_red"   "$c_reset" "$*" >&2; exit 1; }
+
+# Is stdin a real terminal we can prompt on?
+interactive() { [ -t 0 ]; }
+
+# Prompt for a value, falling back to a default. Non-interactive => default.
+ask() {
+    local prompt="$1" default="$2" answer=""
+    if interactive; then
+        read -r -p "$prompt [$default]: " answer || true
+    fi
+    printf '%s' "${answer:-$default}"
+}
+
+# =============================================================================
+# 1. detect platform
+# =============================================================================
+detect_platform() {
+    case "$(uname -s)" in
+        Darwin) IS_MAC=true ;;
+        Linux)
+            IS_LINUX=true
+            if [ -r /etc/os-release ]; then
+                # shellcheck disable=SC1091
+                DISTRO="$(. /etc/os-release && echo "${ID:-unknown}")"
+            fi
+            ;;
+        *) die "Unsupported platform: $(uname -s) (only macOS and Linux are supported)" ;;
+    esac
+}
+
+# Run a command as root (no-op prefix if we already are root).
+as_root() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
+# Run a command as the ansible user (works whether we're root or a sudoer).
+as_ansible() { sudo -H -u "$ANSIBLE_USER" "$@"; }
+
+# =============================================================================
+# 2a. create the dedicated `ansible` user with passwordless sudo
+# =============================================================================
+ensure_ansible_user() {
+    say "Ensuring '$ANSIBLE_USER' user with passwordless sudo"
+    if $IS_MAC; then ensure_ansible_user_mac; else ensure_ansible_user_linux; fi
+
+    # Passwordless sudo so `become: true` works unattended. /etc/sudoers.d is
+    # honored on both Linux and modern macOS.
+    printf '%s ALL=(ALL) NOPASSWD: ALL\n' "$ANSIBLE_USER" | as_root tee "$SUDOERS_FILE" >/dev/null
+    as_root chmod 0440 "$SUDOERS_FILE"
+    as_root visudo -cf "$SUDOERS_FILE" >/dev/null
+    ok "User '$ANSIBLE_USER' ready"
+}
+
+ensure_ansible_user_linux() {
+    getent group "$ANSIBLE_USER" >/dev/null 2>&1 || as_root groupadd "$ANSIBLE_USER"
+    if ! id "$ANSIBLE_USER" >/dev/null 2>&1; then
+        as_root useradd -m -g "$ANSIBLE_USER" -s /bin/bash "$ANSIBLE_USER"
+    fi
+}
+
+ensure_ansible_user_mac() {
+    dscl . -read "/Users/$ANSIBLE_USER" >/dev/null 2>&1 && return 0
+    # Find a free UID in the hidden service-account range (descending from 499).
+    local uid=499
+    while dscl . -list /Users UniqueID | awk '{print $2}' | grep -qx "$uid"; do
+        uid=$((uid - 1))
+    done
+    local home="/Users/$ANSIBLE_USER"
+    as_root dscl . -create "/Users/$ANSIBLE_USER"
+    as_root dscl . -create "/Users/$ANSIBLE_USER" RealName "Ansible Pull"
+    as_root dscl . -create "/Users/$ANSIBLE_USER" UserShell /bin/bash
+    as_root dscl . -create "/Users/$ANSIBLE_USER" UniqueID "$uid"
+    as_root dscl . -create "/Users/$ANSIBLE_USER" PrimaryGroupID 20   # staff
+    as_root dscl . -create "/Users/$ANSIBLE_USER" NFSHomeDirectory "$home"
+    as_root dscl . -create "/Users/$ANSIBLE_USER" IsHidden 1          # keep off login window
+    as_root mkdir -p "$home"
+    as_root chown "$ANSIBLE_USER:staff" "$home"
+}
+
+# =============================================================================
+# 2. install dependencies (git + ansible, and gh only when needed)
+# =============================================================================
+have() { command -v "$1" >/dev/null 2>&1; }
+
+ensure_deps() {
+    if have git && have ansible-pull; then
+        ok "git and ansible already installed"
+        return 0
+    fi
+    say "Installing git + ansible"
+    if $IS_MAC; then
+        ensure_brew
+        brew install git ansible
+    else
+        case "$DISTRO" in
+            ubuntu|debian|pop|raspbian|linuxmint)
+                as_root apt-get update -qq
+                as_root apt-get install -y git ansible cron ;;
+            fedora|rhel|centos|rocky|almalinux)
+                as_root dnf install -y git ansible cronie ;;
+            arch|manjaro|endeavouros)
+                as_root pacman -Sy --noconfirm git ansible cronie ;;
+            *)
+                die "Don't know how to install packages on '$DISTRO'. Install git + ansible manually, then re-run." ;;
+        esac
+    fi
+    ok "Dependencies installed"
+}
+
+ensure_brew() {
+    have brew && return 0
+    say "Installing Homebrew"
+    NONINTERACTIVE=1 /bin/bash -c \
+        "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
+    [ -x /usr/local/bin/brew ]   && eval "$(/usr/local/bin/brew shellenv)"
+}
+
+# gh is only required for the inventory PR step; install lazily.
+ensure_gh() {
+    have gh && return 0
+    say "Installing GitHub CLI (gh)"
+    if $IS_MAC; then
+        ensure_brew && brew install gh
+    else
+        case "$DISTRO" in
+            fedora|rhel|centos|rocky|almalinux) as_root dnf install -y gh ;;
+            arch|manjaro|endeavouros)           as_root pacman -Sy --noconfirm github-cli ;;
+            ubuntu|debian|pop|raspbian|linuxmint)
+                as_root mkdir -p -m 755 /etc/apt/keyrings
+                curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+                    | as_root tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
+                as_root chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+                echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+                    | as_root tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+                as_root apt-get update -qq && as_root apt-get install -y gh ;;
+            *) return 1 ;;
+        esac
+    fi
+    have gh
+}
+
+# =============================================================================
+# 3. install the scheduled pull loop (runs as the ansible user)
+# =============================================================================
+
+# Write /usr/local/bin/ansible-pull-run with the chosen repo/branch baked in.
+install_wrapper() {
+    say "Installing pull wrapper at $WRAPPER_PATH"
+    as_root tee "$WRAPPER_PATH" >/dev/null <<EOF
+#!/usr/bin/env bash
+# Managed by n8-ansible 'bin/join'. Edit via re-running join, not by hand.
+set -uo pipefail
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\$PATH"
+
+REPO="$REPO"
+BRANCH="$BRANCH"
+
+# Don't stack runs on top of each other.
+if pgrep -f "ansible-pull -U \$REPO" >/dev/null 2>&1; then
+    echo "\$(date '+%Y-%m-%d %H:%M:%S') ansible-pull already running; skipping" >>"$LOGFILE"
+    exit 0
+fi
+
+echo "=== \$(date '+%Y-%m-%d %H:%M:%S') ansible-pull \$REPO ($BRANCH) ===" >>"$LOGFILE"
+ansible-pull -U "\$REPO" -C "\$BRANCH" -o local.yml "\$@" >>"$LOGFILE" 2>&1
+echo "=== \$(date '+%Y-%m-%d %H:%M:%S') exit \$? ===" >>"$LOGFILE"
+EOF
+    as_root chmod 0755 "$WRAPPER_PATH"
+    as_root touch "$LOGFILE"
+    as_root chown "$ANSIBLE_USER" "$LOGFILE"   # the ansible user runs the pull and writes here
+    ok "Wrapper installed (logs to $LOGFILE)"
+}
+
+# Translate "every N minutes" into a cron schedule expression.
+cron_schedule() {
+    local m="$1"
+    if [ "$m" -lt 60 ]; then
+        echo "*/$m * * * *"
+    else
+        echo "0 */$((m / 60)) * * *"
+    fi
+}
+
+install_schedule_linux() {
+    say "Scheduling pull every $MINUTES min via '$ANSIBLE_USER' cron"
+    # Make sure cron is running (service name varies by distro).
+    for svc in cron crond cronie; do
+        if as_root systemctl list-unit-files 2>/dev/null | grep -q "^$svc"; then
+            as_root systemctl enable --now "$svc" >/dev/null 2>&1 || true
+            break
+        fi
+    done
+    local entry; entry="$(cron_schedule "$MINUTES") $WRAPPER_PATH"
+    # Replace any prior join entry in the ansible user's crontab, keep the rest.
+    { as_root crontab -u "$ANSIBLE_USER" -l 2>/dev/null | grep -v "$WRAPPER_PATH" || true; echo "$entry"; } \
+        | as_root crontab -u "$ANSIBLE_USER" -
+    ok "Crontab updated for '$ANSIBLE_USER'"
+}
+
+install_schedule_mac() {
+    say "Scheduling pull every $MINUTES min via LaunchDaemon"
+    local interval=$((MINUTES * 60))
+    as_root tee "$LAUNCHD_PLIST" >/dev/null <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>            <string>${LAUNCHD_LABEL}</string>
+    <key>UserName</key>         <string>${ANSIBLE_USER}</string>
+    <key>ProgramArguments</key> <array><string>${WRAPPER_PATH}</string></array>
+    <key>StartInterval</key>    <integer>${interval}</integer>
+    <key>RunAtLoad</key>        <true/>
+    <key>StandardOutPath</key>  <string>${LOGFILE}</string>
+    <key>StandardErrorPath</key><string>${LOGFILE}</string>
+</dict>
+</plist>
+EOF
+    as_root chmod 0644 "$LAUNCHD_PLIST"
+    as_root launchctl unload "$LAUNCHD_PLIST" 2>/dev/null || true
+    as_root launchctl load -w "$LAUNCHD_PLIST"
+    ok "LaunchDaemon loaded ($LAUNCHD_LABEL)"
+}
+
+install_schedule() {
+    if $IS_MAC; then install_schedule_mac; else install_schedule_linux; fi
+}
+
+# =============================================================================
+# 4. add this host to the inventory via a draft PR
+# =============================================================================
+
+# Parse "owner/repo" out of an https or ssh git URL.
+repo_slug() {
+    local url="$1"
+    url="${url%.git}"
+    url="${url#https://github.com/}"
+    url="${url#git@github.com:}"
+    echo "$url"
+}
+
+host_vars_content() {
+    cat <<EOF
+---
+# $NAME -- enrolled via bin/join on $(date '+%Y-%m-%d')
+# Pulled by the 'ansible' user every $MINUTES min via $WRAPPER_PATH (cron/launchd).
+
+# Map system users to config profiles in roles/users. Uncomment + edit:
+user_configs:
+  - system_user: root
+    config_profile: root
+# - system_user: $(id -un)
+#   config_profile: nsheaps   # <- point at a real profile
+
+# bin/join owns the pull schedule for this host, so don't let the
+# ansible-pull role install its own competing cron job.
+ansible_pull_enabled: false
+EOF
+}
+
+open_inventory_pr() {
+    if [ "${ANSIBLE_PULL_NO_PR:-0}" = "1" ]; then
+        warn "ANSIBLE_PULL_NO_PR set; skipping inventory PR"
+        return 0
+    fi
+
+    if ! ensure_gh; then
+        warn "gh unavailable; skipping PR. Add this host to inventory manually:"
+        printf '\n--- host_vars/%s.yml ---\n%s\n' "$NAME" "$(host_vars_content)"
+        printf '\n--- add to ./hosts under [%s] ---\n%s\n\n' "$GROUP" "$NAME"
+        return 0
+    fi
+
+    if ! gh auth status >/dev/null 2>&1; then
+        if interactive; then
+            say "Logging in to GitHub (needed to open the inventory PR)"
+            gh auth login
+        else
+            warn "Not logged in to gh and not interactive; skipping PR."
+            return 0
+        fi
+    fi
+
+    local slug; slug="$(repo_slug "$REPO")"
+    local tmp; tmp="$(mktemp -d)"
+    say "Opening draft PR to add '$NAME' to $slug"
+
+    gh repo clone "$slug" "$tmp" -- --depth 1 --branch "$BRANCH" >/dev/null 2>&1 \
+        || git clone --depth 1 --branch "$BRANCH" "$REPO" "$tmp" >/dev/null 2>&1 \
+        || { warn "Could not clone $slug; skipping PR."; return 0; }
+
+    # Whole block is best-effort: a PR hiccup must never abort enrollment.
+    (
+        cd "$tmp"
+        pr_branch="join/$NAME"
+        git checkout -b "$pr_branch" >/dev/null 2>&1 || git checkout "$pr_branch"
+
+        host_vars_content > "host_vars/$NAME.yml"
+
+        # Add the host under its group in ./hosts if not already present.
+        if [ -f hosts ] && ! grep -qxF "$NAME" hosts; then
+            awk -v g="[$GROUP]" -v h="$NAME" '
+                { print }
+                $0 == g { print h; ins=1 }
+                END { if (!ins) { print g; print h } }
+            ' hosts > hosts.tmp && mv hosts.tmp hosts
+        fi
+
+        git add "host_vars/$NAME.yml" hosts
+        if git diff --cached --quiet; then
+            ok "Inventory already up to date for '$NAME'; nothing to PR"
+            exit 0
+        fi
+        git -c user.name="n8-ansible join" -c user.email="join@n8-ansible.local" \
+            commit -q -m "Add $NAME to inventory ($GROUP)"
+        git push -u origin "$pr_branch" >/dev/null 2>&1 \
+            || { warn "Could not push '$pr_branch'."; exit 0; }
+
+        if gh pr create --draft --base "$BRANCH" --head "$pr_branch" \
+            --title "Add $NAME to inventory" \
+            --body "Enrolled by \`bin/join\`. Pulls every $MINUTES min as $GROUP. Review the user_configs mapping before merge." \
+            2>/dev/null; then
+            ok "Draft PR opened"
+        else
+            warn "Pushed '$pr_branch' but PR not created (one may already exist)."
+        fi
+    ) || warn "Inventory PR step did not complete; continuing."
+    rm -rf "$tmp"
+}
+
+# =============================================================================
+# uninstall
+# =============================================================================
+uninstall() {
+    say "Removing n8-ansible pull schedule"
+    if $IS_MAC; then
+        as_root launchctl unload "$LAUNCHD_PLIST" 2>/dev/null || true
+        as_root rm -f "$LAUNCHD_PLIST"
+    else
+        { as_root crontab -u "$ANSIBLE_USER" -l 2>/dev/null | grep -v "$WRAPPER_PATH" || true; } \
+            | as_root crontab -u "$ANSIBLE_USER" -
+    fi
+    as_root rm -f "$WRAPPER_PATH"
+    warn "Left the '$ANSIBLE_USER' user and $SUDOERS_FILE in place; remove them by hand if you want them gone."
+    ok "Schedule removed. (Inventory entry, if merged, must be removed in the repo.)"
+    exit 0
+}
+
+# =============================================================================
+# main
+# =============================================================================
+usage() {
+    cat <<EOF
+Usage: join [options]
+
+  --name NAME        Inventory name for this host   (default: $(hostname -s 2>/dev/null || echo host))
+  --repo URL         Git repo to pull from          (default: $DEFAULT_REPO)
+  --branch BRANCH    Branch to track                (default: $DEFAULT_BRANCH)
+  --minutes N        Minutes between pulls           (default: $DEFAULT_MINUTES)
+  --group GROUP      Inventory group                 (default: $DEFAULT_GROUP)
+  --no-pr            Skip opening the inventory PR
+  --uninstall        Remove the local pull schedule and exit
+  -h, --help         Show this help
+
+Any option can also be supplied via env var (ANSIBLE_PULL_NAME, _REPO,
+_BRANCH, _MINUTES, _GROUP, ANSIBLE_PULL_NO_PR=1).
+EOF
+}
+
+main() {
+    NAME="${ANSIBLE_PULL_NAME:-}"
+    REPO="${ANSIBLE_PULL_REPO:-$DEFAULT_REPO}"
+    BRANCH="${ANSIBLE_PULL_BRANCH:-$DEFAULT_BRANCH}"
+    MINUTES="${ANSIBLE_PULL_MINUTES:-$DEFAULT_MINUTES}"
+    GROUP="${ANSIBLE_PULL_GROUP:-$DEFAULT_GROUP}"
+    local do_uninstall=false
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --name)     NAME="$2"; shift 2 ;;
+            --repo)     REPO="$2"; shift 2 ;;
+            --branch)   BRANCH="$2"; shift 2 ;;
+            --minutes)  MINUTES="$2"; shift 2 ;;
+            --group)    GROUP="$2"; shift 2 ;;
+            --no-pr)    ANSIBLE_PULL_NO_PR=1; shift ;;
+            --uninstall) do_uninstall=true; shift ;;
+            -h|--help)  usage; exit 0 ;;
+            *) die "Unknown option: $1 (try --help)" ;;
+        esac
+    done
+
+    detect_platform
+    $do_uninstall && uninstall
+
+    # Confirm sudo up front (no-op if already root) so prompts don't interrupt later.
+    [ "$(id -u)" -eq 0 ] || { say "Requesting sudo access"; sudo -v; }
+
+    # Interactive config: the three things that matter.
+    NAME="$(ask "Name this machine in the inventory" "${NAME:-$(hostname -s 2>/dev/null || echo host)}")"
+    REPO="$(ask "Pull config from repo" "$REPO")"
+    BRANCH="$(ask "  ...tracking branch" "$BRANCH")"
+    MINUTES="$(ask "Check for updates every N minutes" "$MINUTES")"
+
+    [[ "$MINUTES" =~ ^[0-9]+$ ]] && [ "$MINUTES" -ge 1 ] || die "minutes must be a positive integer"
+
+    say "Enrolling '$NAME' -> $REPO ($BRANCH), every $MINUTES min, group '$GROUP'"
+
+    ensure_deps
+    ensure_ansible_user
+    install_wrapper
+    install_schedule
+    open_inventory_pr
+
+    say "Running first pull now (as '$ANSIBLE_USER')"
+    as_ansible "$WRAPPER_PATH" || warn "First pull reported issues; see $LOGFILE"
+
+    ok "Done. '$NAME' will pull every $MINUTES min."
+    echo "    Logs:    $LOGFILE"
+    echo "    Run now: sudo -H -u $ANSIBLE_USER $WRAPPER_PATH"
+    if [ "${ANSIBLE_PULL_NO_PR:-0}" != "1" ]; then
+        echo "    Merge the inventory PR so this host gets host-specific config."
+    fi
+}
+
+main "$@"
